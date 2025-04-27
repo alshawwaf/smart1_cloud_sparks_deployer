@@ -1,0 +1,32 @@
+[
+    {
+        "gw_name": "sparks1",
+        "version": "R81.10",
+        "hardware": "1575/1595",
+        "net_type": "Wireless",
+        "sic_key": "vpn123",
+        "gateway_ip": "203.0.113.171:4434",
+        "gateway_username": "admin",
+        "gateway_password": "Cpwins!1"
+    },
+    {
+        "gw_name": "sparks2",
+        "version": "R81.10",
+        "hardware": "1575/1595",
+        "net_type": "Wireless",
+        "sic_key": "vpn123",
+        "gateway_ip": "203.0.113.172:4434",
+        "gateway_username": "admin",
+        "gateway_password": "Cpwins!1"
+    },
+    {
+        "gw_name": "sparks3",
+        "version": "R81.10",
+        "hardware": "1575/1595",
+        "net_type": "Wireless",
+        "sic_key": "vpn123",
+        "gateway_ip": "203.0.113.173:4434",
+        "gateway_username": "admin",
+        "gateway_password": "Cpwins!1"
+    }
+]
