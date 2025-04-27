@@ -1,8 +1,0 @@
-{
-    "client_id": "***REDACTED-CLIENT-ID***",
-    "access_key": "***REDACTED-ACCESS-KEY***",
-    "portal_url": "https://cloudinfra-gw-us.portal.checkpoint.com",
-    "instance": "***REDACTED-INSTANCE***",
-    "context": "***REDACTED-CONTEXT***",
-    "api_key": "***REDACTED-API-KEY***=="
-}
