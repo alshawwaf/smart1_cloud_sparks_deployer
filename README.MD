@@ -123,7 +123,7 @@ Important Security Note: Never commit sensitive credentials to version control. 
 
 ## WorkFlow
 
-```Mermaid
+```mermaid
 graph TD
     A[Start Deployment] --> B[Load Configurations]
     B --> B1[Auth Config]
