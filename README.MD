@@ -23,7 +23,7 @@ Automated deployment and configuration system for Check Point Smart-1 Cloud gate
 ```bash
 # Clone repository
 git clone https://github.com/alshawwaf/smart1_cloud_sparks_deployer.git
-cd s1c-sparks-gateway-deployer
+cd smart1_cloud_sparks_deployer
 
 # Create virtual environment
 python -m venv .venv
