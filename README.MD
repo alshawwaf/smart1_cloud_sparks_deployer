@@ -26,10 +26,16 @@ git clone https://github.com/alshawwaf/smart1_cloud_sparks_deployer.git
 cd smart1_cloud_sparks_deployer
 
 # Create virtual environment
-python -m venv .venv
+python.exe -m venv .venv
+
+# Create virtual environment (Linux)
+python3 -m venv.venv
 
 # Activate environment (Windows)
 .venv\Scripts\activate
+
+# Activate environment (Linux)
+source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
