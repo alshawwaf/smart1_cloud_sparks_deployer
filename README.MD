@@ -7,7 +7,7 @@ Automated deployment and configuration system for Check Point Smart-1 Cloud gate
 - Centralized management configuration
 - Policy package deployment
 - Physical gateway provisioning
-- Comprehensive logging and error handling
+- logging and error handling
 - Configuration validation with Pydantic models
 - Retry logic for API operations
 
