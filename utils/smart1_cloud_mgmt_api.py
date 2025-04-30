@@ -19,7 +19,7 @@ from .logger_main import log
 from tqdm import tqdm
 
 class ManagementAPI:
-    """Client for Check Point Management Server operations"""
+    """Client for Check Point Gateway operations"""
     
     def __init__(self, instance: str, context: str, api_key: str):
         self.base_url = f"https://{instance}.maas.checkpoint.com/{context}/web_api"
