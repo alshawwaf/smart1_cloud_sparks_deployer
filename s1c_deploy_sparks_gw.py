@@ -148,8 +148,8 @@ def configure_sparks_gateway(gateway: GatewayConfig) -> None:
         
         # Execute physical configuration commands
         commands = [
-            "add interface-loopback ipv4-address 10.0.0.1 mask-length 32",
-            "cplic put 10.0.0.1 03Mar2026 a7A6cYTXc-3ytp6pqRY-Cos9tTubK-MmHEFpUxt CPSG-C-8-U CPSB-FW CPSB-VPN CPSB-ADN CPSB-ACCL CPSB-IPSA CPSB-DLP CPSB-SSLVPN-50 CPSB-IA CPSG-VSX-25S CPSB-SWB CPSB-IPS CPSB-ASPM CPSB-URLF CPSB-AV CPSB-APCL CPSB-ABOT-L CPSB-CTNT CK-A3A62E52AFE3",
+            # "add interface-loopback ipv4-address 10.0.0.1 mask-length 32",
+            # "cplic put #your_license_string",
             f"connect maas auth-token {gateway.maas_token}",
             "set security-management mode centrally-managed",
             f"set sic_init password {gateway.sic_key}",
