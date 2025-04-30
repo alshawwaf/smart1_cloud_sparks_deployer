@@ -107,7 +107,7 @@ INFO - ✅ All gateway processing completed
 
 ## Documentation
 
-[Smart-1 Cloud API Reference](https://app.swaggerhub.com/apis-docs/Check-Point/smart-1_cloud_api/1.0.0)
+[Smart-1 Cloud API Reference](https://app.swaggerhub.com/apis-docs/Check-Point/smart-1_cloud_api/1.0.0#/)
 
 [Check Point Management API Docs](https://sc1.checkpoint.com/documents/latest/APIs/)
 
