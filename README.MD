@@ -29,7 +29,7 @@ cd smart1_cloud_sparks_deployer
 python.exe -m venv .venv
 
 # Create virtual environment (Linux)
-python3 -m venv.venv
+python3 -m venv .venv
 
 # Activate environment (Windows)
 .venv\Scripts\activate
