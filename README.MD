@@ -12,11 +12,11 @@ Automated deployment and configuration system for Check Point Smart-1 Cloud gate
 - Retry logic for API operations
 
 ## Prerequisites
-- Check Point Smart-1 Cloud account
-- Valid API credentials (client ID/access key)
-- Management API key
+- Check Point Smart-1 Cloud account.
+- Valid API credentials (client ID/access key -> Generated from the Check Point Infinity Portal
+- Management API key -> Generated from the Smart-1 Cloud application
 - Python 3.9+
-- Physical gateways with REST API access
+- Physical gateways with REST API access (Optional. Use ZeroTouch instead)
 
 ## Installation
 
