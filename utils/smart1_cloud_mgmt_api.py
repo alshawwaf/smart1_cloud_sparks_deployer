@@ -81,6 +81,7 @@ class ManagementAPI:
             {"name": "Management_Service"}
             )
             sms_cn = sms_info['sic-name'].split(',')[1]
+            sms_cn_name = sms_cn.split('=')[1]
             
             # Get gateway UID
             gateway_info = self._execute_api_call(
@@ -95,7 +96,7 @@ class ManagementAPI:
                 {
                     "name": gw_name,
                     "one-time-password": sic_key,
-                    "sic-name": f"CN={gw_name},{sms_cn}",
+                    "sic-name": f"CN={gw_name},O={sms_cn_name}",
                     "version": version,
                     "os-name": "Gaia Embedded"
                 }
