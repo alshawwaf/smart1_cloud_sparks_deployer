@@ -1,0 +1,5 @@
+{
+    "instance": "your-instance",
+    "context": "your-context-uuid",
+    "api_key": "your-management-api-key"
+}

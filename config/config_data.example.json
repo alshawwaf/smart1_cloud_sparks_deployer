@@ -1,0 +1,19 @@
+[
+    {
+        "gw_name": "sparks1",
+        "version": "R81.10",
+        "hardware": "1575/1595",
+        "net_type": "Wireless",
+        "sic_key": "your-sic-key",
+        "gateway_ip": "203.0.113.171:4434",
+        "gateway_username": "admin",
+        "gateway_password": "your-appliance-password"
+    },
+    {
+        "gw_name": "sparks2",
+        "version": "R82",
+        "hardware": "1800",
+        "net_type": "Wireless",
+        "sic_key": "your-sic-key"
+    }
+]

@@ -1,4 +1,5 @@
 *.json
+!config/*.example.json
 .venv
 .vscode
 logs

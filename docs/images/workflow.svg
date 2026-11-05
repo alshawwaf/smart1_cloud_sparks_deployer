@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="430" viewBox="0 0 1200 430" role="img" aria-labelledby="title desc">
   <title id="title">Deployment workflow</title>
-  <desc id="desc">Phase 1 registers and configures each gateway. Phase 2 installs the policy package. Phase 3 optionally configures each appliance over its local REST API.</desc>
+  <desc id="desc">Phase 1 registers and configures each gateway. Phase 2 optionally configures each appliance over its local REST API. Phase 3 waits for SIC and installs the policy package.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#0B1220"/>
@@ -48,7 +48,7 @@
     <text x="54" y="90" class="head">Register and configure</text>
     <g>
       <circle cx="62" cy="142" r="10" class="dot1"/><text x="62" y="146" text-anchor="middle" class="num">1</text>
-      <text x="84" y="147" class="item">Register in Smart-1 Cloud</text>
+      <text x="84" y="147" class="item">Register and get the cloud token</text>
       <circle cx="62" cy="184" r="10" class="dot1"/><text x="62" y="188" text-anchor="middle" class="num">2</text>
       <text x="84" y="189" class="item">Wait for the gateway object</text>
       <circle cx="62" cy="226" r="10" class="dot1"/><text x="62" y="230" text-anchor="middle" class="num">3</text>
@@ -68,43 +68,40 @@
 
     <!-- Phase 2 -->
     <rect x="425" y="30" width="350" height="370" rx="14" class="card"/>
-    <rect x="425" y="30" width="350" height="78" fill="url(#p2)" clip-path="url(#c2)"/>
-    <text x="449" y="60" class="phase">PHASE 2 · ALL GATEWAYS</text>
-    <text x="449" y="90" class="head">Install policy</text>
+    <rect x="425" y="30" width="350" height="78" fill="url(#p3)" clip-path="url(#c2)"/>
+    <text x="449" y="60" class="phase">PHASE 2 · OPTIONAL</text>
+    <text x="449" y="90" class="head">Configure the appliance</text>
     <g>
-      <circle cx="457" cy="142" r="10" class="dot2"/><text x="457" y="146" text-anchor="middle" class="num">1</text>
-      <text x="479" y="147" class="item">Open a management session</text>
-      <circle cx="457" cy="184" r="10" class="dot2"/><text x="457" y="188" text-anchor="middle" class="num">2</text>
-      <text x="479" y="189" class="item">Install the policy package</text>
-      <text x="479" y="209" class="note">Access Control and Threat Prevention</text>
-      <circle cx="457" cy="246" r="10" class="dot2"/><text x="457" y="250" text-anchor="middle" class="num">3</text>
-      <text x="479" y="251" class="item">Wait for the task to complete</text>
-      <circle cx="457" cy="288" r="10" class="dot2"/><text x="457" y="292" text-anchor="middle" class="num">4</text>
-      <text x="479" y="293" class="item">Close the session</text>
-      <text x="449" y="372" class="note">Runs only for gateways configured in phase 1</text>
+      <circle cx="457" cy="142" r="10" class="dot3"/><text x="457" y="146" text-anchor="middle" class="num">1</text>
+      <text x="479" y="147" class="mono code">connect maas auth-token</text>
+      <circle cx="457" cy="184" r="10" class="dot3"/><text x="457" y="188" text-anchor="middle" class="num">2</text>
+      <text x="479" y="189" class="mono code">set security-management mode</text>
+      <circle cx="457" cy="226" r="10" class="dot3"/><text x="457" y="230" text-anchor="middle" class="num">3</text>
+      <text x="479" y="231" class="mono code">set sic_init password</text>
+      <circle cx="457" cy="268" r="10" class="dot3"/><text x="457" y="272" text-anchor="middle" class="num">4</text>
+      <text x="479" y="273" class="mono code">fetch certificate</text>
+      <text x="449" y="372" class="note">Skipped for Zero Touch appliances</text>
     </g>
 
     <path class="chev" d="M788 200 l14 15 l-14 15"/>
 
     <!-- Phase 3 -->
     <rect x="820" y="30" width="350" height="370" rx="14" class="card"/>
-    <rect x="820" y="30" width="350" height="78" fill="url(#p3)" clip-path="url(#c3)"/>
-    <text x="844" y="60" class="phase">PHASE 3 · OPTIONAL</text>
-    <text x="844" y="90" class="head">Configure the appliance</text>
+    <rect x="820" y="30" width="350" height="78" fill="url(#p2)" clip-path="url(#c3)"/>
+    <text x="844" y="60" class="phase">PHASE 3 · ALL GATEWAYS</text>
+    <text x="844" y="90" class="head">Install policy</text>
     <g>
-      <circle cx="852" cy="142" r="10" class="dot3"/><text x="852" y="146" text-anchor="middle" class="num">1</text>
-      <text x="874" y="147" class="mono code">connect maas auth-token</text>
-      <circle cx="852" cy="184" r="10" class="dot3"/><text x="852" y="188" text-anchor="middle" class="num">2</text>
-      <text x="874" y="189" class="mono code">set security-management mode</text>
-      <circle cx="852" cy="226" r="10" class="dot3"/><text x="852" y="230" text-anchor="middle" class="num">3</text>
-      <text x="874" y="231" class="mono code">set sic_init password</text>
-      <circle cx="852" cy="268" r="10" class="dot3"/><text x="852" y="272" text-anchor="middle" class="num">4</text>
-      <text x="874" y="273" class="mono code">fetch certificate</text>
-      <circle cx="852" cy="310" r="10" class="dot3"/><text x="852" y="314" text-anchor="middle" class="num">5</text>
-      <text x="874" y="315" class="mono code">connect security-management</text>
-      <circle cx="852" cy="352" r="10" class="dot3"/><text x="852" y="356" text-anchor="middle" class="num">6</text>
-      <text x="874" y="357" class="mono code">fw fetch</text>
-      <text x="844" y="386" class="note">Skipped for Zero Touch appliances</text>
+      <circle cx="852" cy="142" r="10" class="dot2"/><text x="852" y="146" text-anchor="middle" class="num">1</text>
+      <text x="874" y="147" class="item">Wait for SIC to communicate</text>
+      <text x="874" y="167" class="note">Up to sic_timeout, 600 s by default</text>
+      <circle cx="852" cy="204" r="10" class="dot2"/><text x="852" y="208" text-anchor="middle" class="num">2</text>
+      <text x="874" y="209" class="item">Install the policy package</text>
+      <text x="874" y="229" class="note">Access Control and Threat Prevention</text>
+      <circle cx="852" cy="266" r="10" class="dot2"/><text x="852" y="270" text-anchor="middle" class="num">3</text>
+      <text x="874" y="271" class="item">Wait for the task to complete</text>
+      <circle cx="852" cy="308" r="10" class="dot2"/><text x="852" y="312" text-anchor="middle" class="num">4</text>
+      <text x="874" y="313" class="item">Log a per-gateway summary</text>
+      <text x="844" y="372" class="note">Only gateways with SIC established</text>
     </g>
   </g>
 </svg>
