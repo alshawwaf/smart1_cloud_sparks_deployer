@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-labelledby="title desc">
+  <title id="title">Architecture</title>
+  <desc id="desc">The deployer registers gateways through the Infinity Portal API, configures them through the Smart-1 Cloud Management API, and optionally configures each Spark appliance through its local REST API. The appliance connects to Smart-1 Cloud over the MaaS tunnel.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B1220"/>
+      <stop offset="1" stop-color="#111C33"/>
+    </linearGradient>
+    <linearGradient id="deployer" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1E3A8A"/>
+      <stop offset="1" stop-color="#1E293B"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#38BDF8"/>
+    </marker>
+    <marker id="arrow-pink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#F472B6"/>
+    </marker>
+    <style>
+      .sans { font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif; }
+      .mono { font-family: "Cascadia Code", Consolas, "SFMono-Regular", Menlo, monospace; }
+      .zone { fill: #0F1A30; stroke: #2B3A5E; stroke-width: 1.5; stroke-dasharray: 6 6; }
+      .zone-label { font-size: 13px; font-weight: 700; letter-spacing: 2px; fill: #94A3B8; }
+      .box { fill: #16213A; stroke: #2B3A5E; stroke-width: 1.5; }
+      .box-title { font-size: 19px; font-weight: 700; fill: #F8FAFC; }
+      .box-sub { font-size: 13px; fill: #94A3B8; }
+      .code { font-size: 13px; fill: #7DD3FC; }
+      .call { fill: none; stroke: #38BDF8; stroke-width: 2.5; }
+      .tunnel { fill: none; stroke: #F472B6; stroke-width: 2.5; stroke-dasharray: 8 7; animation: flow 1.4s linear infinite; }
+      @keyframes flow { to { stroke-dashoffset: -30; } }
+      .step { fill: #38BDF8; }
+      .step-num { font-size: 13px; font-weight: 700; fill: #0B1220; }
+      .step-label { font-size: 14px; font-weight: 600; fill: #E2E8F0; }
+      .legend { font-size: 13px; fill: #CBD5E1; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="560" rx="20" fill="url(#bg)"/>
+  <rect x="0.5" y="0.5" width="1199" height="559" rx="20" fill="none" stroke="#2B3A5E"/>
+
+  <g class="sans">
+    <!-- Zones -->
+    <rect x="390" y="36" width="410" height="440" rx="16" class="zone"/>
+    <text x="414" y="66" class="zone-label">CHECK POINT SMART-1 CLOUD</text>
+    <rect x="880" y="236" width="290" height="240" rx="16" class="zone"/>
+    <text x="904" y="266" class="zone-label">CUSTOMER SITE</text>
+
+    <!-- Deployer -->
+    <rect x="40" y="190" width="250" height="150" rx="14" fill="url(#deployer)" stroke="#3B82F6" stroke-width="1.5"/>
+    <g transform="translate(64 214)">
+      <rect width="34" height="34" rx="8" fill="#0B1220" stroke="#3B82F6"/>
+      <path d="M9 12 l6 5 l-6 5 M18 23 h8" fill="none" stroke="#7DD3FC" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <text x="64" y="282" class="box-title">Deployer</text>
+    <text x="64" y="306" class="mono code">s1c_deploy_sparks_gw.py</text>
+    <text x="64" y="326" class="box-sub">Python 3.9+</text>
+
+    <!-- Infinity Portal API -->
+    <rect x="420" y="86" width="350" height="150" rx="14" class="box"/>
+    <text x="444" y="122" class="box-title">Infinity Portal API</text>
+    <text x="444" y="146" class="box-sub">Registers the gateway and returns its MaaS token</text>
+    <text x="444" y="182" class="mono code">POST /auth/external</text>
+    <text x="444" y="204" class="mono code">POST /app/maas/api/v1/gateways</text>
+
+    <!-- Management API -->
+    <rect x="420" y="266" width="350" height="180" rx="14" class="box"/>
+    <text x="444" y="302" class="box-title">Management API</text>
+    <text x="444" y="326" class="box-sub">Configures the gateway object and installs policy</text>
+    <text x="444" y="362" class="mono code">set-simple-gateway</text>
+    <text x="444" y="384" class="mono code">set-generic-object</text>
+    <text x="444" y="406" class="mono code">publish</text>
+    <text x="444" y="428" class="mono code">install-policy</text>
+
+    <!-- Spark appliance -->
+    <rect x="904" y="286" width="242" height="160" rx="14" class="box"/>
+    <g transform="translate(928 306)">
+      <rect width="44" height="26" rx="5" fill="#0B1220" stroke="#2B3A5E"/>
+      <circle cx="10" cy="13" r="3" fill="#34D399"/>
+      <circle cx="21" cy="13" r="3" fill="#34D399"/>
+      <circle cx="32" cy="13" r="3" fill="#FBBF24"/>
+    </g>
+    <text x="928" y="360" class="box-title">Spark appliance</text>
+    <text x="928" y="384" class="box-sub">Local REST API (optional)</text>
+    <text x="928" y="416" class="mono code">run-clish-command</text>
+
+    <!-- Calls -->
+    <path class="call" d="M290 230 H350 V160 H414" marker-end="url(#arrow)"/>
+    <path class="call" d="M290 300 H350 V356 H414" marker-end="url(#arrow)"/>
+    <path class="call" d="M165 340 V516 H1025 V452" marker-end="url(#arrow)"/>
+
+    <!-- Tunnel -->
+    <path class="tunnel" d="M898 366 H776" marker-end="url(#arrow-pink)" marker-start="url(#arrow-pink)"/>
+    <text x="837" y="350" text-anchor="middle" class="step-label" fill="#F9A8D4">MaaS</text>
+
+    <!-- Step badges -->
+    <circle cx="320" cy="196" r="13" class="step"/>
+    <text x="320" y="201" text-anchor="middle" class="step-num">1</text>
+    <circle cx="320" cy="334" r="13" class="step"/>
+    <text x="320" y="339" text-anchor="middle" class="step-num">2</text>
+    <rect x="538" y="500" width="476" height="32" rx="16" fill="#0F1A30" stroke="#2B3A5E"/>
+    <circle cx="556" cy="516" r="13" class="step"/>
+    <text x="556" y="521" text-anchor="middle" class="step-num">3</text>
+    <text x="580" y="521" class="step-label">Configure appliance: connect to Smart-1 Cloud, SIC, fetch policy</text>
+
+    <!-- Legend -->
+    <g transform="translate(904 66)">
+      <rect width="266" height="140" rx="12" fill="#0F1A30" stroke="#2B3A5E"/>
+      <text x="20" y="32" class="zone-label">LEGEND</text>
+      <path d="M20 62 H64" class="call" marker-end="url(#arrow)"/>
+      <text x="78" y="67" class="legend">API call by the deployer</text>
+      <path d="M20 96 H64" fill="none" stroke="#F472B6" stroke-width="2.5" stroke-dasharray="8 7"/>
+      <text x="78" y="101" class="legend">Appliance to Smart-1 Cloud</text>
+      <circle cx="31" cy="126" r="10" class="step"/>
+      <text x="31" y="130" text-anchor="middle" class="step-num" font-size="11">n</text>
+      <text x="78" y="131" class="legend">Deployment phase</text>
+    </g>
+  </g>
+</svg>
