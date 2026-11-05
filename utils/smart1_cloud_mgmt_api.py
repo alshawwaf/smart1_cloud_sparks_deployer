@@ -134,7 +134,7 @@ class ManagementAPI:
                     log.error(f"API call failed: {response.text}")
                 response.raise_for_status()
                 return response.json()
-            log.info(f"🕒  Gateway object {gw_name} not created yet, retrying in {GATEWAY_OBJECT_POLL}s")
+            log.info(f"Gateway object {gw_name} not created yet, retrying in {GATEWAY_OBJECT_POLL}s")
             time.sleep(GATEWAY_OBJECT_POLL)
 
     def configure_gateway(self, gw_name: str, version: str, net_type: str,
@@ -245,14 +245,14 @@ class ManagementAPI:
                     status = task_data.get('status', 'unknown').upper()
 
                     # Update spinner description
-                    pbar.set_description(f"🔄 {status}")
+                    pbar.set_description(status)
 
                     if status == "SUCCEEDED":
-                        pbar.set_description("✅ COMPLETED")
+                        pbar.set_description("COMPLETED")
                         pbar.close()
                         return
                     if status in ("FAILED", "PARTIALLY SUCCEEDED"):
-                        pbar.set_description(f"❌ {status}")
+                        pbar.set_description(status)
                         pbar.close()
                         raise Exception(f"Task {status.lower()}: {task_data}")
 
