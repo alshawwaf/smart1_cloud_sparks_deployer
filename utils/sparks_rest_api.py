@@ -3,6 +3,7 @@
 Sparks Gateway REST API Client
 Handles direct device configuration via local REST API
 """
+import re
 import time
 import base64
 import requests
@@ -12,6 +13,8 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 DEFAULT_TIMEOUT = 60  # seconds for each HTTP request
+# Clish output that means the command failed, e.g. "Could not set security-management: ..."
+FAILURE_PATTERN = re.compile(r"\b(could not|failed|failure|error|invalid|rejected)\b", re.IGNORECASE)
 
 class SparksGatewayAPI:
     """Client for configuring sparks gateways via their local API"""
@@ -64,6 +67,10 @@ class SparksGatewayAPI:
                 output = base64.b64decode(response.json()['output']).decode()
                 if output: # not all clish command return an output
                     log.debug(f"CLISH command response: {redact(output, secrets)}")
+                # Clish reports most failures in the output with HTTP 200
+                if FAILURE_PATTERN.search(output):
+                    raise RuntimeError(f"Command '{redact(cmd, secrets)}' failed: "
+                                       f"{redact(output.strip(), secrets)}")
                 log.info(f"Waiting for {delay} seconds between commands")
                 time.sleep(delay)
 

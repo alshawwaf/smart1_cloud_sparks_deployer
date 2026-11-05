@@ -1,7 +1,4 @@
 {
-    "client_id": "your-client-id",
-    "access_key": "your-access-key",
-    "portal_url": "https://cloudinfra-gw-us.portal.checkpoint.com",
     "instance": "your-instance",
     "context": "your-context-uuid",
     "api_key": "your-management-api-key"

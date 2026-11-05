@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-labelledby="title desc">
   <title id="title">Architecture</title>
-  <desc id="desc">The deployer registers gateways through the Infinity Portal API, configures them through the Smart-1 Cloud Management API, and optionally configures each Spark appliance through its local REST API before policy is installed. The appliance connects to Smart-1 Cloud over the MaaS tunnel.</desc>
+  <desc id="desc">The deployer registers and configures gateways through the Smart-1 Cloud Management API, or registers them through the Infinity Portal API, and optionally configures each Spark appliance through its local REST API before policy is installed. The appliance connects to Smart-1 Cloud over the MaaS tunnel.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#0B1220"/>
@@ -60,17 +60,19 @@
     <!-- Infinity Portal API -->
     <rect x="420" y="86" width="350" height="150" rx="14" class="box"/>
     <text x="444" y="122" class="box-title">Infinity Portal API</text>
-    <text x="444" y="146" class="box-sub">Registers the gateway and returns its MaaS token</text>
+    <rect x="652" y="104" width="90" height="24" rx="12" fill="#0B1220" stroke="#475569"/>
+    <text x="697" y="121" text-anchor="middle" class="box-sub">optional</text>
+    <text x="444" y="146" class="box-sub">Alternative registration with portal API keys</text>
     <text x="444" y="182" class="mono code">POST /auth/external</text>
     <text x="444" y="204" class="mono code">POST /app/maas/api/v1/gateways</text>
 
     <!-- Management API -->
     <rect x="420" y="266" width="350" height="180" rx="14" class="box"/>
     <text x="444" y="302" class="box-title">Management API</text>
-    <text x="444" y="326" class="box-sub">Configures the object, checks SIC, installs policy</text>
-    <text x="444" y="362" class="mono code">set-simple-gateway</text>
-    <text x="444" y="384" class="mono code">set-generic-object</text>
-    <text x="444" y="406" class="mono code">publish, show-simple-gateway</text>
+    <text x="444" y="326" class="box-sub">Registers, configures, checks SIC, installs policy</text>
+    <text x="444" y="362" class="mono code">add-simple-gateway, set-trust</text>
+    <text x="444" y="384" class="mono code">set-simple-gateway, set-generic-object</text>
+    <text x="444" y="406" class="mono code">publish, test-sic-status</text>
     <text x="444" y="428" class="mono code">install-policy</text>
 
     <!-- Spark appliance -->

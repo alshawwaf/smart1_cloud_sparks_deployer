@@ -38,17 +38,24 @@ def deploy_s1c_sparks_gw() -> None:
 def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], policy_config: PolicyPackage) -> bool:
     """Process each gateway configuration with proper sequencing. Returns True if all gateways succeeded."""
     # Initialize API clients
-    s1c_cloud = Smart1CloudAPI(
-        client_id=auth_config.client_id,
-        access_key=auth_config.access_key,
-        portal_url=auth_config.portal_url
-    )
-
     mgmt_api = ManagementAPI(
         instance=auth_config.instance,
         context=auth_config.context,
         api_key=auth_config.api_key
     )
+
+    # Gateways are registered through the Infinity Portal API when its credentials are
+    # configured, otherwise through the Management API (cloud token)
+    if auth_config.use_portal_registration:
+        log.info("Registering gateways through the Infinity Portal API")
+        registrar = Smart1CloudAPI(
+            client_id=auth_config.client_id,
+            access_key=auth_config.access_key,
+            portal_url=auth_config.portal_url
+        )
+    else:
+        log.info("Registering gateways through the Management API (cloud token)")
+        registrar = mgmt_api
 
     # Final state of each gateway, reported in the summary
     results: Dict[str, str] = {gateway.gw_name: "not started" for gateway in config_data}
@@ -61,7 +68,7 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
             log.info(f"Starting processing for {gateway.gw_name}")
 
             # 1. Cloud Registration
-            registration = s1c_cloud.register_gateway(gateway.gw_name)
+            registration = registrar.register_gateway(gateway.gw_name)
             gateway.maas_token = registration['token']
             log.debug("Cloud registration response: %s",
                       redact(json.dumps(registration, indent=2), [gateway.maas_token]))
@@ -184,16 +191,18 @@ def configure_sparks_gateway(gateway: GatewayConfig) -> None:
 
         sparks_gw.login()
 
-        # Execute physical configuration commands. Policy is installed from the
-        # management afterwards, so no 'fw fetch' is needed here.
+        # Execute physical configuration commands. The appliance joins Smart-1 Cloud with the
+        # MaaS token and pulls its SIC certificate. Policy is installed from the management
+        # afterwards, so no 'fw fetch' is needed here. 'connect security-management' is not
+        # used: after 'fetch certificate' it fails with "You must reinitialize trusted
+        # communications" (verified on R81.10.17).
         commands = [
             # "add interface-loopback ipv4-address 10.0.0.1 mask-length 32",
             # "cplic put #your_license_string",
             f"connect maas auth-token {gateway.maas_token}",
             "set security-management mode centrally-managed",
             f"set sic_init password {gateway.sic_key}",
-            f"fetch certificate mgmt-ipv4-address 100.64.0.52 gateway-name {gateway.gw_name}",
-            "connect security-management mgmt-addr 100.64.0.52 use-one-time-password true local-override-mgmt-addr true send-logs-to local-override-mgmt-addr"
+            f"fetch certificate mgmt-ipv4-address 100.64.0.52 gateway-name {gateway.gw_name}"
         ]
 
         sparks_gw.execute_clish(commands, secrets=secrets)
