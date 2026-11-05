@@ -79,6 +79,10 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
             continue
 
     # Phase 2: Policy Installation
+    if not configured_gateways:
+        log.error("❌  No gateways were configured, skipping policy installation")
+        return
+
     try:
         log.info(f"🛡️  Installing policy package '{policy_config.policy_package}'")
         mgmt_api.install_policy(

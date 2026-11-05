@@ -185,10 +185,9 @@ class Smart1CloudAPI:
         """
         try:
             log.info(f"Deleting gateway: {gw_name}")
-            url = f"{self.base_url}{GATEWAYS_ENDPOINT}/{gw_name}"
-            params = {'deleteObjectFromConfiguration': 'true'}
-            
-            response = self._execute_request("DELETE", url, params=params)
+            url = f"{self.base_url}{GATEWAYS_ENDPOINT}/{gw_name}?deleteObjectFromConfiguration=true"
+
+            response = self._execute_request("DELETE", url)
             
             if response.get('success'):
                 log.info(f"Deleted the gateway {gw_name} Successfully")
