@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Iterable, Optional
 from logging.handlers import RotatingFileHandler
 
 def configure_logging() -> logging.Logger:
@@ -38,5 +39,16 @@ def configure_logging() -> logging.Logger:
     logger.addHandler(console_handler)
 
     return logger
+
+
+REDACTED = "********"
+
+
+def redact(text: str, secrets: Iterable[Optional[str]]) -> str:
+    """Replace every secret value in text before it is logged"""
+    for secret in secrets:
+        if secret:
+            text = text.replace(secret, REDACTED)
+    return text
 
 log = configure_logging()

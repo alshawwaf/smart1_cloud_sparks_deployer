@@ -1,0 +1,5 @@
+{
+    "policy_package": "Standard",
+    "install_delay": 30,
+    "sic_timeout": 600
+}

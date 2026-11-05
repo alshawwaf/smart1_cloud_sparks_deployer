@@ -30,14 +30,18 @@ from tqdm import tqdm
 TRUST_SETTINGS_API_VERSION = (2, 1)
 GATEWAY_OBJECT_TIMEOUT = 180  # seconds to wait for the Smart-1 Cloud gateway object
 GATEWAY_OBJECT_POLL = 10  # seconds
+SIC_POLL = 15  # seconds between SIC state checks
+DEFAULT_TIMEOUT = 60  # seconds for each HTTP request
+TASK_TIMEOUT = 1800  # seconds to wait for a publish or install-policy task
 
 
 class ManagementAPI:
     """Client for Check Point Gateway operations"""
 
-    def __init__(self, instance: str, context: str, api_key: str):
+    def __init__(self, instance: str, context: str, api_key: str, timeout: int = DEFAULT_TIMEOUT):
         self.base_url = f"https://{instance}.maas.checkpoint.com/{context}/web_api"
         self.api_key = api_key
+        self.timeout = timeout
         self.sid: Optional[str] = None
         self.api_version: Optional[str] = None
         self.session = requests.Session()
@@ -49,7 +53,8 @@ class ManagementAPI:
         try:
             response = self.session.post(
                 f"{self.base_url}/login",
-                json={"api-key": self.api_key}
+                json={"api-key": self.api_key},
+                timeout=self.timeout
             )
             response.raise_for_status()
             login_data = response.json()
@@ -71,7 +76,7 @@ class ManagementAPI:
         """Terminate management session"""
         try:
             # The API requires a JSON body, even an empty one
-            response = self.session.post(f"{self.base_url}/logout", json={})
+            response = self.session.post(f"{self.base_url}/logout", json={}, timeout=self.timeout)
             response.raise_for_status()
             log.debug("Successfully logged out")
         except requests.exceptions.RequestException as e:
@@ -94,7 +99,8 @@ class ManagementAPI:
         try:
             response = self.session.post(
                 f"{self.base_url}/{endpoint}",
-                json=payload
+                json=payload,
+                timeout=self.timeout
             )
             response.raise_for_status()
             return response.json()
@@ -127,7 +133,8 @@ class ManagementAPI:
         while True:
             response = self.session.post(
                 f"{self.base_url}/show-simple-gateway",
-                json={"name": gw_name}
+                json={"name": gw_name},
+                timeout=self.timeout
             )
             if response.status_code != 404 or time.time() > deadline:
                 if not response.ok:
@@ -201,6 +208,38 @@ class ManagementAPI:
             self._logout()
 
 
+    def wait_for_sic(self, gw_names: List[str], timeout: int) -> List[str]:
+        """Wait until gateways report SIC state 'communicating'. Returns the gateways that do."""
+        pending = list(gw_names)
+        communicating: List[str] = []
+        deadline = time.time() + timeout
+        try:
+            self._login()
+            while pending:
+                for gw_name in list(pending):
+                    try:
+                        gateway_info = self._execute_api_call("show-simple-gateway", {"name": gw_name})
+                    except requests.exceptions.RequestException as e:
+                        log.warning(f"Could not read SIC state of {gw_name}: {str(e)}")
+                        continue
+                    sic_state = gateway_info.get('sic-state', 'unknown')
+                    if sic_state == "communicating":
+                        log.info(f"SIC established with {gw_name}")
+                        pending.remove(gw_name)
+                        communicating.append(gw_name)
+                    else:
+                        log.debug(f"{gw_name} SIC state: {sic_state}")
+                if not pending or time.time() > deadline:
+                    break
+                log.info(f"Waiting for SIC with {', '.join(pending)}, retrying in {SIC_POLL}s")
+                time.sleep(SIC_POLL)
+        finally:
+            self._logout()
+
+        for gw_name in pending:
+            log.error(f"SIC not established with {gw_name} within {timeout}s, skipping policy installation")
+        return communicating
+
     def install_policy(self, policy_targets: List[str], policy_package: str) -> None:
         """Install security policy on gateways"""
         try:
@@ -227,8 +266,9 @@ class ManagementAPI:
         finally:
             self._logout()
 
-    def _monitor_task(self, task_id: str, interval: int = 10) -> None:
+    def _monitor_task(self, task_id: str, interval: int = 10, timeout: int = TASK_TIMEOUT) -> None:
         """Monitor async task completion with spinner"""
+        deadline = time.time() + timeout
         try:
             with tqdm(
                 total=1,  # Fake total for spinner
@@ -255,6 +295,9 @@ class ManagementAPI:
                         pbar.set_description(status)
                         pbar.close()
                         raise Exception(f"Task {status.lower()}: {task_data}")
+                    if time.time() > deadline:
+                        pbar.close()
+                        raise TimeoutError(f"Task {task_id} did not complete within {timeout}s")
 
                     time.sleep(interval)
 

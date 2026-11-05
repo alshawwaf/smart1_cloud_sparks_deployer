@@ -32,7 +32,7 @@ the appliance itself.
 |---|---|
 | **Bulk registration** | Registers any number of gateways in Smart-1 Cloud and retrieves their MaaS tokens. |
 | **Object configuration** | Sets the version, operating system, Spark hardware and SIC trust settings through the Management API. |
-| **Policy installation** | Installs the Access Control and Threat Prevention policy on every gateway that was configured. |
+| **Policy installation** | Waits for each gateway to establish SIC, then installs the Access Control and Threat Prevention policy. |
 | **Appliance configuration** | Optionally connects each appliance to Smart-1 Cloud over its local REST API. Supports Zero Touch appliances. |
 | **Version awareness** | Detects the Smart-1 Cloud management version and adapts SIC configuration to it, including R82.20. |
 | **Validation and logging** | Validates all configuration files before the run and keeps a rotating DEBUG log of every run. |
@@ -46,11 +46,17 @@ the appliance itself.
 ### Workflow
 
 <p align="center">
-  <img src="docs/images/workflow.svg" alt="Workflow: phase 1 register and configure, phase 2 install policy, phase 3 configure the appliance" width="100%">
+  <img src="docs/images/workflow.svg" alt="Workflow: phase 1 register and configure, phase 2 configure the appliance, phase 3 install policy" width="100%">
 </p>
 
-A gateway that fails in phase 1 is logged and skipped, and the run continues with the remaining
-gateways. Policy installation in phase 2 runs only for the gateways that were configured.
+Policy is installed last, because a gateway accepts policy only after it has connected to
+Smart-1 Cloud and established SIC. Phase 3 waits for each gateway to reach the "communicating"
+SIC state and installs policy only on those gateways. Zero Touch appliances that connect within
+that time are included automatically.
+
+A gateway that fails at any step is logged and skipped, and the run continues with the remaining
+gateways. The run ends with a summary of each gateway and exits with a non-zero code if any
+gateway was not deployed.
 
 ## Quick Start
 
@@ -70,10 +76,28 @@ Activate the virtual environment and install the dependencies:
 pip install -r requirements.txt
 ```
 
-Create the three files described in [Configuration](#configuration), then run:
+Create your configuration files from the templates, then fill them in as described in
+[Configuration](#configuration):
+
+| Windows | Linux |
+|---|---|
+| `copy config\auth_data.example.json config\auth_data.json` | `cp config/auth_data.example.json config/auth_data.json` |
+| `copy config\config_data.example.json config\config_data.json` | `cp config/config_data.example.json config/config_data.json` |
+| `copy config\policy_package_data.example.json config\policy_package_data.json` | `cp config/policy_package_data.example.json config/policy_package_data.json` |
+
+Run the deployment:
 
 ```bash
 python s1c_deploy_sparks_gw.py
+```
+
+Example summary at the end of a run:
+
+```text
+INFO - Deployment summary:
+INFO -   sparks1: deployed
+ERROR -   sparks2: failed: SIC not established
+INFO - 1 of 2 gateways deployed
 ```
 
 ### Requirements
@@ -132,17 +156,28 @@ INFO - Connected to Management API version 2.1
 
 ## Configuration
 
-The deployer reads three JSON files from the `config` directory.
+The deployer reads three JSON files from the `config` directory. The repository contains a
+template for each file. Your own files are excluded by `.gitignore`, so credentials are never
+committed.
 
 ```text
 config/
-├── auth_data.json             Smart-1 Cloud and Infinity Portal credentials
-├── config_data.json           One entry for each gateway
-└── policy_package_data.json   Policy package to install
+├── auth_data.example.json             Template: Smart-1 Cloud and Infinity Portal credentials
+├── config_data.example.json           Template: one entry for each gateway
+├── policy_package_data.example.json   Template: policy package and timeouts
+├── auth_data.json                     Your file (not tracked)
+├── config_data.json                   Your file (not tracked)
+└── policy_package_data.json           Your file (not tracked)
 ```
 
 > [!NOTE]
 > JSON does not support comments. Each file must contain only the keys described below.
+
+> [!IMPORTANT]
+> **Upgrading from an earlier version:** the configuration files were previously tracked in the
+> repository and are now excluded. Copy your `config` folder to a safe location before you run
+> `git pull`, then copy your three files back into `config/`. If `git pull` reports local changes
+> to the configuration files, run `git checkout -- config` after the backup and pull again.
 
 ### `config/auth_data.json`
 
@@ -178,7 +213,7 @@ config/
         "sic_key": "your-sic-key",
         "gateway_ip": "203.0.113.171:4434",
         "gateway_username": "admin",
-        "gateway_password": "secure-password"
+        "gateway_password": "your-appliance-password"
     },
     {
         "gw_name": "sparks2",
@@ -201,7 +236,7 @@ config/
 | `gateway_username` | No | Administrator user name on the appliance. |
 | `gateway_password` | No | Administrator password on the appliance. |
 
-To have the deployer configure the appliance in phase 3, provide all three of `gateway_ip`,
+To have the deployer configure the appliance in phase 2, provide all three of `gateway_ip`,
 `gateway_username` and `gateway_password`. Omit them for appliances onboarded with Zero Touch.
 
 ### `config/policy_package_data.json`
@@ -209,14 +244,16 @@ To have the deployer configure the appliance in phase 3, provide all three of `g
 ```json
 {
     "policy_package": "Standard",
-    "install_delay": 30
+    "install_delay": 30,
+    "sic_timeout": 600
 }
 ```
 
-| Key | Description |
-|---|---|
-| `policy_package` | Name of the policy package to install on the gateways. |
-| `install_delay` | Reserved. Not used by the current version of the deployer. |
+| Key | Required | Description |
+|---|:---:|---|
+| `policy_package` | Yes | Name of the policy package to install on the gateways. |
+| `sic_timeout` | No | Seconds to wait for gateways to establish SIC before policy installation. Default `600`. Increase it for Zero Touch appliances that connect later. |
+| `install_delay` | No | Reserved. Not used by the current version of the deployer. |
 
 ## Logging
 
@@ -225,12 +262,17 @@ To have the deployer configure the appliance in phase 3, provide all three of `g
 | Console | INFO | Progress of each phase and gateway. |
 | `logs/s1c_deploy_sparks_gw.log` | DEBUG | Full details, including API responses. Rotated at 5 MB, with 3 backups. |
 
+MaaS tokens, SIC one-time passwords and appliance passwords are replaced with `********` in the
+console and in the log file.
+
 **Resilience**
 
 - Infinity Portal API requests are retried up to 3 times.
 - All configuration files are validated before the deployment starts.
 - After registration, the deployer waits up to 3 minutes for Smart-1 Cloud to create the gateway
   object.
+- Every HTTP request has a 60-second timeout, and publish and policy installation tasks have a
+  30-minute limit, so a stalled connection cannot stop the run indefinitely.
 - Each phase opens and closes its own Management API session.
 
 ## Troubleshooting
@@ -239,6 +281,8 @@ To have the deployer configure the appliance in phase 3, provide all three of `g
 |---|---|---|
 | SIC errors on `set-simple-gateway`, or the gateway does not reach the "communicating" state, after the upgrade to R82.20 | Earlier versions of the deployer set the one-time password before the object was a Spark gateway | Update to the current version and confirm that the log shows `Management API version 2.1`. |
 | `Policy installation failed` with a session error | Earlier versions of the deployer used a closed Management API session | Update to the current version. |
+| `SIC not established with ... skipping policy installation` | The appliance did not connect to Smart-1 Cloud within `sic_timeout` | Check the appliance connectivity and the phase 2 log entries. For Zero Touch appliances, increase `sic_timeout`, or install policy from SmartConsole once the gateway connects. |
+| `Config file ... not found` | The configuration file has not been created | Copy the matching `.example.json` template in `config/` and fill in your values. |
 | `Gateway object ... not created yet` repeats and then fails | Smart-1 Cloud did not create the gateway object within 3 minutes | Confirm that the gateway is listed in the Smart-1 Cloud application in the Infinity Portal, then run the deployer again. |
 | `Management server upgrade in progress` warning | Smart-1 Cloud is running a background upgrade | Wait for the upgrade to complete, then run the deployment. |
 | The gateway is rejected or is not listed | Firmware earlier than R81.10.X, or a Rugged 1200R appliance | See [Version Compatibility](#version-compatibility). |
@@ -248,10 +292,12 @@ For full details of a run, see `logs/s1c_deploy_sparks_gw.log`.
 ## Security
 
 > [!CAUTION]
-> The configuration files contain credentials. Do not commit them to version control. Add
-> `config/*.json` to `.gitignore`.
+> The configuration files contain credentials. They are excluded by `.gitignore`; do not force-add
+> them to version control.
 
-- The local REST API client does not verify the appliance certificate. Run phase 3 only on
+- Secrets are masked in the console and the log file. Treat the log file as sensitive anyway,
+  because it contains API responses.
+- The local REST API client does not verify the appliance certificate. Run phase 2 only on
   trusted management networks.
 - Use a dedicated Management API key for the deployer and revoke it when it is no longer needed.
 
@@ -264,6 +310,22 @@ For full details of a run, see `logs/s1c_deploy_sparks_gw.log`.
 | R82.20 Release Notes | [PDF](https://sc1.checkpoint.com/documents/R82.20/WebAdminGuides/EN/CP_R82.20_RN/CP_R82.20_ReleaseNotes.pdf) |
 
 ## Changelog
+
+### November 2026: Deployment order and security
+
+- Policy is now installed last. The appliance is configured first, then the deployer waits for
+  each gateway to establish SIC (`sic_timeout`) and installs policy only on those gateways.
+  Previously, policy installation ran before the appliance was connected and stopped the run
+  when it failed.
+- A failure no longer stops the run. Each gateway is reported in a summary, and the deployer exits
+  with a non-zero code if any gateway was not deployed.
+- The `fw fetch` command was removed from appliance configuration, because policy is installed
+  from the management server.
+- MaaS tokens, SIC one-time passwords and appliance passwords are masked in the console and the
+  log file.
+- All HTTP requests have a timeout, and publish and policy installation tasks have a time limit.
+- The configuration files are no longer tracked. The repository now contains `.example.json`
+  templates. See the upgrade note in [Configuration](#configuration).
 
 ### November 2026: Smart-1 Cloud R82.20 support
 
