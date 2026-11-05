@@ -53,7 +53,7 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
     # Phase 1: Cloud Registration & Configuration
     for gateway in config_data:
         try:
-            log.info(f"🚀  Starting processing for {gateway.gw_name}")
+            log.info(f"Starting processing for {gateway.gw_name}")
             
             # 1. Cloud Registration
             registration = s1c_cloud.register_gateway(gateway.gw_name)
@@ -62,25 +62,29 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
             time.sleep(25)
             
             # 2. Cloud Configuration
-            log.info("⚙️  Configuring Gateway Object settings")
+            log.info("Configuring Gateway Object settings")
             configure_gateway(mgmt_api, gateway)
             configured_gateways.append(gateway.gw_name)
             
             # Track gateways needing physical config
             if all([gateway.gateway_ip, gateway.gateway_username, gateway.gateway_password]):
                 pending_physical_config.append(gateway)
-                log.info("⏳  Queueing for physical configuration")
+                log.info("Queueing for physical configuration")
             
-            log.info("🕒  Waiting 15 seconds for stabilization")
+            log.info("Waiting 15 seconds for stabilization")
             time.sleep(15)
             
         except Exception as e:
-            log.error(f"❌  Failed to process {gateway.gw_name}: {str(e)}")
+            log.error(f"Failed to process {gateway.gw_name}: {str(e)}")
             continue
 
     # Phase 2: Policy Installation
+    if not configured_gateways:
+        log.error("No gateways were configured, skipping policy installation")
+        return
+
     try:
-        log.info(f"🛡️  Installing policy package '{policy_config.policy_package}'")
+        log.info(f"Installing policy package '{policy_config.policy_package}'")
         mgmt_api.install_policy(
             policy_targets=configured_gateways,
             policy_package=policy_config.policy_package
@@ -88,27 +92,27 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
         
         # Use configured delay
         #delay = policy_config.install_delay
-        #log.info(f"🕒 Waiting {delay}s for policy activation")
+        #log.info(f"Waiting {delay}s for policy activation")
         #time.sleep(delay)
         
     except Exception as e:
-        log.error(f"❌  Policy installation failed: {str(e)}")
+        log.error(f"Policy installation failed: {str(e)}")
         raise
 
     # Phase 3: Physical Gateway Configuration
     for gateway in pending_physical_config:
         try:
-            log.info(f"🔧 Configuring physical gateway {gateway.gw_name}")
+            log.info(f"Configuring physical gateway {gateway.gw_name}")
             configure_sparks_gateway(gateway)
             
-            log.info(f"🕒  Waiting 10s for physical gateway initialization")
+            log.info(f"Waiting 10s for physical gateway initialization")
             time.sleep(10)
             
         except Exception as e:
-            log.error(f"❌  Sparks Gateway config failed for {gateway.gw_name}: {str(e)}")
+            log.error(f"Spark gateway configuration failed for {gateway.gw_name}: {str(e)}")
             continue
 
-    log.info("✅ All gateway processing completed")
+    log.info("All gateway processing completed")
     
       
 def configure_gateway(mgmt_api: ManagementAPI, gateway: GatewayConfig) -> None:

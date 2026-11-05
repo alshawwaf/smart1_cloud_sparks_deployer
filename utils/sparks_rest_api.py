@@ -57,7 +57,7 @@ class SparksGatewayAPI:
                 output = base64.b64decode(response.json()['output']).decode()
                 if output: # not all clish command return an output
                     log.debug(f"CLISH command response: {output}")
-                log.info(f"🕒 Waiting for {delay} seconds between commands")
+                log.info(f"Waiting for {delay} seconds between commands")
                 time.sleep(delay)
                 
         except Exception as e:
