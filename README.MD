@@ -1,24 +1,14 @@
-<p align="center">
-  <img src="docs/images/banner.svg" alt="Smart-1 Cloud Spark Gateway Deployer" width="100%">
-</p>
+# Smart-1 Cloud Spark Gateway Deployer
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Smart--1_Cloud-R82_%7C_R82.10_%7C_R82.20-E6007E?style=for-the-badge" alt="Smart-1 Cloud R82, R82.10, R82.20">
-  <img src="https://img.shields.io/badge/Management_API-2.0_%E2%80%93_2.1-1E3A8A?style=for-the-badge" alt="Management API 2.0 to 2.1">
-  <img src="https://img.shields.io/badge/Spark_firmware-R81.10.X_%7C_R82.00.X-0F766E?style=for-the-badge" alt="Spark firmware R81.10.X, R82.00.X">
-  <img src="https://img.shields.io/badge/Python-3.9%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.9+">
-  <img src="https://img.shields.io/badge/Platform-Windows_%7C_Linux-334155?style=for-the-badge" alt="Windows and Linux">
-</p>
+Automated onboarding of Check Point Quantum Spark gateways to Smart-1 Cloud.
 
-<p align="center">
-  <a href="#overview"><b>Overview</b></a> ·
-  <a href="#live-deployment-example"><b>Live Example</b></a> ·
-  <a href="#quick-start"><b>Quick Start</b></a> ·
-  <a href="#version-compatibility"><b>Compatibility</b></a> ·
-  <a href="#configuration"><b>Configuration</b></a> ·
-  <a href="#troubleshooting"><b>Troubleshooting</b></a> ·
-  <a href="#changelog"><b>Changelog</b></a>
-</p>
+![Smart-1 Cloud R82 to R82.20](https://img.shields.io/badge/Smart--1_Cloud-R82_to_R82.20-555555)
+![Spark firmware R81.10.X and R82.00.X](https://img.shields.io/badge/Spark-R81.10.X_%7C_R82.00.X-555555)
+![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-555555)
+
+[Overview](#overview) · [Live Example](#live-deployment-example) · [Quick Start](#quick-start) ·
+[Compatibility](#version-compatibility) · [Configuration](#configuration) ·
+[Troubleshooting](#troubleshooting) · [Changelog](#changelog)
 
 ---
 
