@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="430" viewBox="0 0 1200 430" role="img" aria-labelledby="title desc">
+  <title id="title">Deployment workflow</title>
+  <desc id="desc">Phase 1 registers and configures each gateway. Phase 2 installs the policy package. Phase 3 optionally configures each appliance over its local REST API.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B1220"/>
+      <stop offset="1" stop-color="#111C33"/>
+    </linearGradient>
+    <linearGradient id="p1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#38BDF8"/>
+    </linearGradient>
+    <linearGradient id="p2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#B0006A"/>
+      <stop offset="1" stop-color="#F472B6"/>
+    </linearGradient>
+    <linearGradient id="p3" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#047857"/>
+      <stop offset="1" stop-color="#34D399"/>
+    </linearGradient>
+    <clipPath id="c1"><rect x="30" y="30" width="350" height="370" rx="14"/></clipPath>
+    <clipPath id="c2"><rect x="425" y="30" width="350" height="370" rx="14"/></clipPath>
+    <clipPath id="c3"><rect x="820" y="30" width="350" height="370" rx="14"/></clipPath>
+    <style>
+      .sans { font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif; }
+      .mono { font-family: "Cascadia Code", Consolas, "SFMono-Regular", Menlo, monospace; }
+      .card { fill: #16213A; stroke: #2B3A5E; stroke-width: 1.5; }
+      .phase { font-size: 12px; font-weight: 700; letter-spacing: 2px; fill: #FFFFFF; fill-opacity: 0.85; }
+      .head { font-size: 21px; font-weight: 700; fill: #FFFFFF; }
+      .note { font-size: 13px; fill: #94A3B8; }
+      .item { font-size: 15px; fill: #E2E8F0; }
+      .code { font-size: 13px; fill: #7DD3FC; }
+      .dot1 { fill: #38BDF8; } .dot2 { fill: #F472B6; } .dot3 { fill: #34D399; }
+      .num { font-size: 11px; font-weight: 700; fill: #0B1220; }
+      .chev { fill: none; stroke: #475569; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+      .tag { font-size: 11px; font-weight: 700; fill: #0B1220; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="430" rx="20" fill="url(#bg)"/>
+  <rect x="0.5" y="0.5" width="1199" height="429" rx="20" fill="none" stroke="#2B3A5E"/>
+
+  <g class="sans">
+    <!-- Phase 1 -->
+    <rect x="30" y="30" width="350" height="370" rx="14" class="card"/>
+    <rect x="30" y="30" width="350" height="78" fill="url(#p1)" clip-path="url(#c1)"/>
+    <text x="54" y="60" class="phase">PHASE 1 · EACH GATEWAY</text>
+    <text x="54" y="90" class="head">Register and configure</text>
+    <g>
+      <circle cx="62" cy="142" r="10" class="dot1"/><text x="62" y="146" text-anchor="middle" class="num">1</text>
+      <text x="84" y="147" class="item">Register in Smart-1 Cloud</text>
+      <circle cx="62" cy="184" r="10" class="dot1"/><text x="62" y="188" text-anchor="middle" class="num">2</text>
+      <text x="84" y="189" class="item">Wait for the gateway object</text>
+      <circle cx="62" cy="226" r="10" class="dot1"/><text x="62" y="230" text-anchor="middle" class="num">3</text>
+      <text x="84" y="231" class="item">Set version and Gaia Embedded</text>
+      <circle cx="62" cy="268" r="10" class="dot1"/><text x="62" y="272" text-anchor="middle" class="num">4</text>
+      <text x="84" y="273" class="item">Convert to a Spark gateway</text>
+      <circle cx="62" cy="310" r="10" class="dot1"/><text x="62" y="314" text-anchor="middle" class="num">5</text>
+      <text x="84" y="315" class="item">Set SIC one-time password</text>
+      <text x="84" y="335" class="mono code">when_gateway_connects</text>
+      <rect x="282" y="322" width="70" height="18" rx="9" fill="#FBBF24"/>
+      <text x="317" y="335" text-anchor="middle" class="tag">R82.20</text>
+      <circle cx="62" cy="372" r="10" class="dot1"/><text x="62" y="376" text-anchor="middle" class="num">6</text>
+      <text x="84" y="377" class="item">Publish</text>
+    </g>
+
+    <path class="chev" d="M393 200 l14 15 l-14 15"/>
+
+    <!-- Phase 2 -->
+    <rect x="425" y="30" width="350" height="370" rx="14" class="card"/>
+    <rect x="425" y="30" width="350" height="78" fill="url(#p2)" clip-path="url(#c2)"/>
+    <text x="449" y="60" class="phase">PHASE 2 · ALL GATEWAYS</text>
+    <text x="449" y="90" class="head">Install policy</text>
+    <g>
+      <circle cx="457" cy="142" r="10" class="dot2"/><text x="457" y="146" text-anchor="middle" class="num">1</text>
+      <text x="479" y="147" class="item">Open a management session</text>
+      <circle cx="457" cy="184" r="10" class="dot2"/><text x="457" y="188" text-anchor="middle" class="num">2</text>
+      <text x="479" y="189" class="item">Install the policy package</text>
+      <text x="479" y="209" class="note">Access Control and Threat Prevention</text>
+      <circle cx="457" cy="246" r="10" class="dot2"/><text x="457" y="250" text-anchor="middle" class="num">3</text>
+      <text x="479" y="251" class="item">Wait for the task to complete</text>
+      <circle cx="457" cy="288" r="10" class="dot2"/><text x="457" y="292" text-anchor="middle" class="num">4</text>
+      <text x="479" y="293" class="item">Close the session</text>
+      <text x="449" y="372" class="note">Runs only for gateways configured in phase 1</text>
+    </g>
+
+    <path class="chev" d="M788 200 l14 15 l-14 15"/>
+
+    <!-- Phase 3 -->
+    <rect x="820" y="30" width="350" height="370" rx="14" class="card"/>
+    <rect x="820" y="30" width="350" height="78" fill="url(#p3)" clip-path="url(#c3)"/>
+    <text x="844" y="60" class="phase">PHASE 3 · OPTIONAL</text>
+    <text x="844" y="90" class="head">Configure the appliance</text>
+    <g>
+      <circle cx="852" cy="142" r="10" class="dot3"/><text x="852" y="146" text-anchor="middle" class="num">1</text>
+      <text x="874" y="147" class="mono code">connect maas auth-token</text>
+      <circle cx="852" cy="184" r="10" class="dot3"/><text x="852" y="188" text-anchor="middle" class="num">2</text>
+      <text x="874" y="189" class="mono code">set security-management mode</text>
+      <circle cx="852" cy="226" r="10" class="dot3"/><text x="852" y="230" text-anchor="middle" class="num">3</text>
+      <text x="874" y="231" class="mono code">set sic_init password</text>
+      <circle cx="852" cy="268" r="10" class="dot3"/><text x="852" y="272" text-anchor="middle" class="num">4</text>
+      <text x="874" y="273" class="mono code">fetch certificate</text>
+      <circle cx="852" cy="310" r="10" class="dot3"/><text x="852" y="314" text-anchor="middle" class="num">5</text>
+      <text x="874" y="315" class="mono code">connect security-management</text>
+      <circle cx="852" cy="352" r="10" class="dot3"/><text x="852" y="356" text-anchor="middle" class="num">6</text>
+      <text x="874" y="357" class="mono code">fw fetch</text>
+      <text x="844" y="386" class="note">Skipped for Zero Touch appliances</text>
+    </g>
+  </g>
+</svg>
