@@ -187,7 +187,8 @@ class ManagementAPI:
             self._logout()
 
     def configure_gateway(self, gw_name: str, version: str, net_type: str,
-                         hardware: str, sic_key: str) -> None:
+                         hardware: str, sic_key: str,
+                         application_control: bool = False, url_filtering: bool = False) -> None:
         """Full gateway configuration workflow"""
         try:
             self._login()
@@ -229,18 +230,22 @@ class ManagementAPI:
             sic_payload = {
                 "name": gw_name,
                 "one-time-password": sic_key,
-                "sic-name": f"CN={gw_name},O={sms_cn_name}"
+                "sic-name": f"CN={gw_name},O={sms_cn_name}",
+                "application-control": application_control,
+                "url-filtering": url_filtering
             }
             if self._api_version_at_least(TRUST_SETTINGS_API_VERSION):
                 sic_payload["trust-settings"] = {"initiation-phase": "when_gateway_connects"}
+                # The object was created as a regular gateway, so it keeps 'per interface'
+                # topology with no interfaces. Spark gateways need 'global and automatic':
+                # without it, policy installation warns about missing topology and the
+                # appliance drops local WebUI/SSH access as "access attempt from unallowed
+                # source" once policy is installed (verified on R81.10.17).
+                sic_payload["interfaces-topology-settings"] = "global and automatic"
             self._execute_api_call("set-simple-gateway", sic_payload)
 
             # Publish changes
-            response = self._execute_api_call("publish", {})
-            task_id = response.get('task-id')
-            log.info("Publishing the session")
-            log.debug(f"Task ID: {task_id}")
-            self._monitor_task(task_id)
+            self._publish()
             log.info("Configuration changes published successfully")
 
             # Install policy
@@ -249,6 +254,29 @@ class ManagementAPI:
         finally:
             self._logout()
 
+
+    def delete_gateway(self, gw_name: str) -> bool:
+        """Delete a gateway object and publish. Returns False if the object does not exist."""
+        try:
+            self._login()
+            # ignore-warnings also removes the gateway from groups that reference it,
+            # for example Playblocks_Gateways ("Object ... is used by the following objects")
+            response = self.session.post(
+                f"{self.base_url}/delete-simple-gateway",
+                json={"name": gw_name, "ignore-warnings": True},
+                timeout=self.timeout
+            )
+            if response.status_code == 404:
+                log.info(f"Gateway object {gw_name} does not exist, nothing to delete")
+                return False
+            if not response.ok:
+                log.error(f"API call failed: {response.text}")
+            response.raise_for_status()
+            self._publish()
+            log.info(f"Deleted gateway object {gw_name}")
+            return True
+        finally:
+            self._logout()
 
     def wait_for_sic(self, gw_names: List[str], timeout: int) -> List[str]:
         """

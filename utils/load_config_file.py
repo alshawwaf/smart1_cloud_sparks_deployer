@@ -26,6 +26,10 @@ class GatewayConfig(BaseModel):
     gateway_ip: Optional[str] = None
     gateway_username: Optional[str] = None
     gateway_password: Optional[str] = None
+    # Optional blades, for example when Smart-1 Cloud adds the gateway to a group whose
+    # rules require them (such as Playblocks_Gateways)
+    application_control: bool = False
+    url_filtering: bool = False
     maas_token: Optional[str] = None
     
     # v2 configuration syntax

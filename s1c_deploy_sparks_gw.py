@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
 Smart-1 Cloud Gateway Deployment Orchestrator
-.venv/Scripts/python.exe s1c_deploy_sparks_gw.py
+.venv/Scripts/python.exe s1c_deploy_sparks_gw.py            deploy the gateways
+.venv/Scripts/python.exe s1c_deploy_sparks_gw.py --delete   remove the gateways
 see the readme file for more details
 """
 
-import sys, time, json
+import argparse, sys, time, json
 from typing import Dict, List
 from utils.logger_main import log, redact
 from utils.load_config_file import read_config_file, AuthConfig, GatewayConfig, PolicyPackage
@@ -16,16 +17,20 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
-def deploy_s1c_sparks_gw() -> None:
+def deploy_s1c_sparks_gw(delete: bool = False) -> None:
     """Main deployment workflow executor"""
     try:
         # Load configurations
         auth_config: AuthConfig = read_config_file('./config/auth_data.json')
-        policy_config: PolicyPackage = read_config_file('./config/policy_package_data.json')
         config_data: List[GatewayConfig] = read_config_file('./config/config_data.json')
 
-        log.info("Starting gateway deployment process")
-        succeeded = process_gateways(auth_config, config_data, policy_config)
+        if delete:
+            log.info("Starting gateway removal process")
+            succeeded = remove_gateways(auth_config, config_data)
+        else:
+            policy_config: PolicyPackage = read_config_file('./config/policy_package_data.json')
+            log.info("Starting gateway deployment process")
+            succeeded = process_gateways(auth_config, config_data, policy_config)
 
     except Exception as e:
         log.error(f"Critical deployment error: {str(e)}")
@@ -143,6 +148,39 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
     return all(state == "deployed" for state in results.values())
 
 
+def remove_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig]) -> bool:
+    """Reset each appliance to local management and delete its gateway object. Returns True on success."""
+    mgmt_api = ManagementAPI(
+        instance=auth_config.instance,
+        context=auth_config.context,
+        api_key=auth_config.api_key
+    )
+    results: Dict[str, str] = {}
+    for gateway in config_data:
+        log.info(f"Removing {gateway.gw_name}")
+        appliance_ok = True
+        if all([gateway.gateway_ip, gateway.gateway_username, gateway.gateway_password]):
+            try:
+                reset_sparks_gateway(gateway)
+            except Exception as e:
+                appliance_ok = False
+                log.error(f"Appliance reset failed for {gateway.gw_name}: "
+                          f"{redact(str(e), [gateway.gateway_password])}")
+        else:
+            log.info("No appliance credentials, skipping appliance reset")
+        try:
+            mgmt_api.delete_gateway(gateway.gw_name)
+            results[gateway.gw_name] = "removed" if appliance_ok else "deleted, failed: appliance reset"
+        except Exception as e:
+            log.error(f"Failed to delete {gateway.gw_name}: {str(e)}")
+            results[gateway.gw_name] = "failed: object deletion"
+
+    log.info("Removal summary:")
+    for gw_name, state in results.items():
+        (log.info if state == "removed" else log.error)(f"  {gw_name}: {state}")
+    return all(state == "removed" for state in results.values())
+
+
 def log_summary(results: Dict[str, str]) -> None:
     """Log the final state of each gateway"""
     log.info("Deployment summary:")
@@ -164,7 +202,9 @@ def configure_gateway(mgmt_api: ManagementAPI, gateway: GatewayConfig) -> None:
             version=gateway.version,
             net_type=gateway.net_type,
             hardware=gateway.hardware,
-            sic_key=gateway.sic_key
+            sic_key=gateway.sic_key,
+            application_control=gateway.application_control,
+            url_filtering=gateway.url_filtering
         )
         log.info(f"Configured {gateway.gw_name} successfully")
 
@@ -214,5 +254,30 @@ def configure_sparks_gateway(gateway: GatewayConfig) -> None:
         raise
 
 
+def reset_sparks_gateway(gateway: GatewayConfig) -> None:
+    """Return an appliance to local management: stop Smart-1 Cloud, reset SIC"""
+    sparks_gw = SparksGatewayAPI(
+        ip_address=gateway.gateway_ip,
+        username=gateway.gateway_username,
+        password=gateway.gateway_password
+    )
+    sparks_gw.login()
+    log.info(f"Resetting appliance {gateway.gw_name} to local management")
+    # The local management mode must be set after 'fw sic_reset', which otherwise
+    # switches the appliance back to central management (verified on R81.10.17)
+    outputs = sparks_gw.execute_clish([
+        "set maas mode stop-using",
+        "fw sic_reset",
+        "set security-management mode locally-managed",
+        "show security-management"
+    ], delay=5)
+    if "locally-managed" not in outputs[-1]:
+        raise RuntimeError(f"Appliance is not locally managed after the reset: {outputs[-1].strip()}")
+    log.info(f"Appliance {gateway.gw_name} reset to local management")
+
+
 if __name__ == '__main__':
-    deploy_s1c_sparks_gw()
+    parser = argparse.ArgumentParser(description="Deploy Quantum Spark gateways to Smart-1 Cloud")
+    parser.add_argument('--delete', action='store_true',
+                        help="Reset the appliances to local management and delete their gateway objects")
+    deploy_s1c_sparks_gw(delete=parser.parse_args().delete)

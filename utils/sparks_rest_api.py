@@ -47,8 +47,12 @@ class SparksGatewayAPI:
 
     def execute_clish(self, commands: List[str], delay: int = 20,
                       secrets: Iterable[Optional[str]] = ()):
-        """Execute CLISH commands on sparks gateway. Values in secrets are masked in all logs."""
+        """
+        Execute CLISH commands on sparks gateway and return their outputs.
+        Values in secrets are masked in all logs.
+        """
         secrets = list(secrets)
+        outputs: List[str] = []
         try:
             for cmd in commands:
                 log.info(f"Running the command: {redact(cmd, secrets)}")
@@ -71,8 +75,10 @@ class SparksGatewayAPI:
                 if FAILURE_PATTERN.search(output):
                     raise RuntimeError(f"Command '{redact(cmd, secrets)}' failed: "
                                        f"{redact(output.strip(), secrets)}")
+                outputs.append(output)
                 log.info(f"Waiting for {delay} seconds between commands")
                 time.sleep(delay)
+            return outputs
 
         except Exception as e:
             log.error(f"CLISH command failed: {redact(str(e), secrets)}")
