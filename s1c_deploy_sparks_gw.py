@@ -7,10 +7,9 @@ see the readme file for more details
 """
 
 import argparse, sys, time, json
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from utils.logger_main import log, redact
 from utils.load_config_file import read_config_file, AuthConfig, GatewayConfig, PolicyPackage
-from utils.smart1_cloud_api import Smart1CloudAPI
 from utils.smart1_cloud_mgmt_api import ManagementAPI
 from utils.sparks_rest_api import SparksGatewayAPI
 import urllib3
@@ -49,35 +48,30 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
         api_key=auth_config.api_key
     )
 
-    # Gateways are registered through the Infinity Portal API when its credentials are
-    # configured, otherwise through the Management API (cloud token)
-    if auth_config.use_portal_registration:
-        log.info("Registering gateways through the Infinity Portal API")
-        registrar = Smart1CloudAPI(
-            client_id=auth_config.client_id,
-            access_key=auth_config.access_key,
-            portal_url=auth_config.portal_url
-        )
-    else:
-        log.info("Registering gateways through the Management API (cloud token)")
-        registrar = mgmt_api
+    log.info("Registering gateways through the Management API (cloud token)")
 
     # Final state of each gateway, reported in the summary
     results: Dict[str, str] = {gateway.gw_name: "not started" for gateway in config_data}
     configured_gateways = []
     pending_physical_config = []
 
+    # The values the tenant accepts for Spark gateways, and the management server address
+    # that the appliances fetch their certificate from
+    capabilities = mgmt_api.get_spark_capabilities()
+    mgmt_ip = mgmt_api.get_management_ip()
+    log.info(f"Smart-1 Cloud management server address: {mgmt_ip}")
+
     # Phase 1: Cloud Registration & Configuration
     for gateway in config_data:
         try:
             log.info(f"Starting processing for {gateway.gw_name}")
+            hardware, hardware_subtype, version = spark_settings(gateway, capabilities)
 
             # 1. Cloud Registration
-            registration = registrar.register_gateway(gateway.gw_name)
+            registration = mgmt_api.register_gateway(gateway.gw_name, hardware, hardware_subtype, version)
             gateway.maas_token = registration['token']
             log.debug("Cloud registration response: %s",
                       redact(json.dumps(registration, indent=2), [gateway.maas_token]))
-            time.sleep(25)
 
             # 2. Cloud Configuration
             log.info("Configuring Gateway Object settings")
@@ -109,7 +103,7 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
     for gateway in pending_physical_config:
         try:
             log.info(f"Configuring physical gateway {gateway.gw_name}")
-            configure_sparks_gateway(gateway)
+            configure_sparks_gateway(gateway, mgmt_ip)
 
             log.info("Waiting 10s for physical gateway initialization")
             time.sleep(10)
@@ -120,7 +114,7 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
             continue
 
     # Phase 3: Policy Installation, only on gateways that established SIC.
-    # Zero Touch appliances connect on their own and are included once they communicate.
+    # Appliances connected by other means are included once they communicate.
     log.info(f"Waiting up to {policy_config.sic_timeout}s for gateways to establish SIC")
     ready_gateways = mgmt_api.wait_for_sic(configured_gateways, timeout=policy_config.sic_timeout)
     for gw_name in configured_gateways:
@@ -193,15 +187,38 @@ def log_summary(results: Dict[str, str]) -> None:
     log.info(f"{deployed} of {len(results)} gateways deployed")
 
 
+def spark_settings(gateway: GatewayConfig, capabilities: Dict[str, List[str]]) -> Tuple[str, str, str]:
+    """
+    Map the gateway configuration to the values the Management API expects, and check them
+    against show-gateway-capabilities. Returns (hardware, hardware_subtype, version).
+    """
+    # "1800" is accepted as shorthand for "1800 Appliances"
+    hardware = gateway.hardware
+    if hardware not in capabilities['hardware'] and f"{hardware} Appliances" in capabilities['hardware']:
+        hardware = f"{hardware} Appliances"
+    if hardware not in capabilities['hardware']:
+        raise ValueError(f"hardware '{gateway.hardware}' is not supported. "
+                         f"Supported: {', '.join(capabilities['hardware'])}")
+
+    subtypes = {subtype.lower(): subtype for subtype in capabilities['subtypes']}
+    if gateway.net_type.lower() not in subtypes:
+        raise ValueError(f"net_type '{gateway.net_type}' is not supported. "
+                         f"Supported: {', '.join(capabilities['subtypes'])}")
+
+    if gateway.version not in capabilities['versions']:
+        raise ValueError(f"version '{gateway.version}' is not supported. "
+                         f"Supported: {', '.join(capabilities['versions'])}")
+
+    # The API expects the hardware subtype in lowercase, for example 'wired'
+    return hardware, gateway.net_type.lower(), gateway.version
+
+
 def configure_gateway(mgmt_api: ManagementAPI, gateway: GatewayConfig) -> None:
-    """Configure gateway settings and install policy"""
+    """Configure the SIC one-time password and blades of the gateway object"""
     log.debug("Starting gateway configuration")
     try:
         mgmt_api.configure_gateway(
             gw_name=gateway.gw_name,
-            version=gateway.version,
-            net_type=gateway.net_type,
-            hardware=gateway.hardware,
             sic_key=gateway.sic_key,
             application_control=gateway.application_control,
             url_filtering=gateway.url_filtering
@@ -214,7 +231,7 @@ def configure_gateway(mgmt_api: ManagementAPI, gateway: GatewayConfig) -> None:
         raise
 
 
-def configure_sparks_gateway(gateway: GatewayConfig) -> None:
+def configure_sparks_gateway(gateway: GatewayConfig, mgmt_ip: str) -> None:
     """Configure physical gateway using dedicated API client"""
     if not all([gateway.gateway_ip, gateway.gateway_username, gateway.gateway_password]):
         log.info("Skipping physical config - incomplete credentials")
@@ -231,18 +248,19 @@ def configure_sparks_gateway(gateway: GatewayConfig) -> None:
 
         sparks_gw.login()
 
-        # Execute physical configuration commands. The appliance joins Smart-1 Cloud with the
-        # MaaS token and pulls its SIC certificate. Policy is installed from the management
-        # afterwards, so no 'fw fetch' is needed here. 'connect security-management' is not
-        # used: after 'fetch certificate' it fails with "You must reinitialize trusted
-        # communications" (verified on R81.10.17).
+        # Execute physical configuration commands (Spark CLI Reference Guide). The appliance
+        # joins Smart-1 Cloud with the cloud token and pulls its SIC certificate from the
+        # management server. Policy is installed from the management afterwards, so no
+        # 'fw fetch' is needed here. 'connect security-management' is not used: after
+        # 'fetch certificate' it fails with "You must reinitialize trusted communications"
+        # (verified on R81.10.17).
         commands = [
             # "add interface-loopback ipv4-address 10.0.0.1 mask-length 32",
             # "cplic put #your_license_string",
             f"connect maas auth-token {gateway.maas_token}",
             "set security-management mode centrally-managed",
             f"set sic_init password {gateway.sic_key}",
-            f"fetch certificate mgmt-ipv4-address 100.64.0.52 gateway-name {gateway.gw_name}"
+            f"fetch certificate mgmt-ipv4-address {mgmt_ip} gateway-name {gateway.gw_name}"
         ]
 
         sparks_gw.execute_clish(commands, secrets=secrets)
@@ -266,7 +284,7 @@ def reset_sparks_gateway(gateway: GatewayConfig) -> None:
     # The local management mode must be set after 'fw sic_reset', which otherwise
     # switches the appliance back to central management (verified on R81.10.17)
     outputs = sparks_gw.execute_clish([
-        "set maas mode stop-using",
+        "set maas mode disable",
         "fw sic_reset",
         "set security-management mode locally-managed",
         "show security-management"

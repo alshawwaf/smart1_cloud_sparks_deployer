@@ -7,15 +7,6 @@ class AuthConfig(BaseModel):
     instance: str
     context: str
     api_key: str
-    # Optional Infinity Portal API credentials. When they are omitted, gateways are
-    # registered through the Management API instead (cloud token, R82.20 and later).
-    client_id: Optional[str] = None
-    access_key: Optional[str] = None
-    portal_url: Optional[str] = None
-
-    @property
-    def use_portal_registration(self) -> bool:
-        return all([self.client_id, self.access_key, self.portal_url])
 
 class GatewayConfig(BaseModel):
     gw_name: str
