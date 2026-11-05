@@ -48,20 +48,18 @@
     <text x="54" y="90" class="head">Register and configure</text>
     <g>
       <circle cx="62" cy="142" r="10" class="dot1"/><text x="62" y="146" text-anchor="middle" class="num">1</text>
-      <text x="84" y="147" class="item">Register and get the cloud token</text>
-      <circle cx="62" cy="184" r="10" class="dot1"/><text x="62" y="188" text-anchor="middle" class="num">2</text>
-      <text x="84" y="189" class="item">Wait for the gateway object</text>
-      <circle cx="62" cy="226" r="10" class="dot1"/><text x="62" y="230" text-anchor="middle" class="num">3</text>
-      <text x="84" y="231" class="item">Set version and Gaia Embedded</text>
-      <circle cx="62" cy="268" r="10" class="dot1"/><text x="62" y="272" text-anchor="middle" class="num">4</text>
-      <text x="84" y="273" class="item">Convert to a Spark gateway</text>
-      <circle cx="62" cy="310" r="10" class="dot1"/><text x="62" y="314" text-anchor="middle" class="num">5</text>
-      <text x="84" y="315" class="item">Set SIC one-time password</text>
-      <text x="84" y="335" class="mono code">when_gateway_connects</text>
-      <rect x="282" y="322" width="70" height="18" rx="9" fill="#FBBF24"/>
-      <text x="317" y="335" text-anchor="middle" class="tag">R82.20</text>
-      <circle cx="62" cy="372" r="10" class="dot1"/><text x="62" y="376" text-anchor="middle" class="num">6</text>
-      <text x="84" y="377" class="item">Publish</text>
+      <text x="84" y="147" class="item">Check settings against the tenant</text>
+      <text x="84" y="167" class="note">show-gateway-capabilities</text>
+      <circle cx="62" cy="204" r="10" class="dot1"/><text x="62" y="208" text-anchor="middle" class="num">2</text>
+      <text x="84" y="209" class="item">Create the Spark gateway object</text>
+      <text x="84" y="229" class="note">Spark hardware, cloud token, generated IP</text>
+      <circle cx="62" cy="266" r="10" class="dot1"/><text x="62" y="270" text-anchor="middle" class="num">3</text>
+      <text x="84" y="271" class="item">Set the SIC one-time password</text>
+      <text x="84" y="291" class="mono code">when_gateway_connects</text>
+      <rect x="282" y="278" width="70" height="18" rx="9" fill="#FBBF24"/>
+      <text x="317" y="291" text-anchor="middle" class="tag">R82.20</text>
+      <circle cx="62" cy="328" r="10" class="dot1"/><text x="62" y="332" text-anchor="middle" class="num">4</text>
+      <text x="84" y="333" class="item">Publish</text>
     </g>
 
     <path class="chev" d="M393 200 l14 15 l-14 15"/>
@@ -69,7 +67,7 @@
     <!-- Phase 2 -->
     <rect x="425" y="30" width="350" height="370" rx="14" class="card"/>
     <rect x="425" y="30" width="350" height="78" fill="url(#p3)" clip-path="url(#c2)"/>
-    <text x="449" y="60" class="phase">PHASE 2 · OPTIONAL</text>
+    <text x="449" y="60" class="phase">PHASE 2 · APPLIANCE</text>
     <text x="449" y="90" class="head">Configure the appliance</text>
     <g>
       <circle cx="457" cy="142" r="10" class="dot3"/><text x="457" y="146" text-anchor="middle" class="num">1</text>
@@ -80,7 +78,7 @@
       <text x="479" y="231" class="mono code">set sic_init password</text>
       <circle cx="457" cy="268" r="10" class="dot3"/><text x="457" y="272" text-anchor="middle" class="num">4</text>
       <text x="479" y="273" class="mono code">fetch certificate</text>
-      <text x="449" y="372" class="note">Skipped for Zero Touch appliances</text>
+      <text x="449" y="372" class="note">Runs when appliance credentials are set</text>
     </g>
 
     <path class="chev" d="M788 200 l14 15 l-14 15"/>
@@ -96,7 +94,7 @@
       <text x="874" y="167" class="note">Up to sic_timeout, 600 s by default</text>
       <circle cx="852" cy="204" r="10" class="dot2"/><text x="852" y="208" text-anchor="middle" class="num">2</text>
       <text x="874" y="209" class="item">Install the policy package</text>
-      <text x="874" y="229" class="note">Access Control and Threat Prevention</text>
+      <text x="874" y="229" class="note">Threat Prevention only where enabled</text>
       <circle cx="852" cy="266" r="10" class="dot2"/><text x="852" y="270" text-anchor="middle" class="num">3</text>
       <text x="874" y="271" class="item">Wait for the task to complete</text>
       <circle cx="852" cy="308" r="10" class="dot2"/><text x="852" y="312" text-anchor="middle" class="num">4</text>

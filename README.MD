@@ -2,7 +2,7 @@
 
 Automated onboarding of Check Point Quantum Spark gateways to Smart-1 Cloud.
 
-![Smart-1 Cloud R82 to R82.20](https://img.shields.io/badge/Smart--1_Cloud-R82_to_R82.20-555555)
+![Smart-1 Cloud R82.20](https://img.shields.io/badge/Smart--1_Cloud-R82.20-555555)
 ![Spark firmware R81.10.X and R82.00.X](https://img.shields.io/badge/Spark-R81.10.X_%7C_R82.00.X-555555)
 ![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-555555)
 
@@ -21,17 +21,17 @@ the appliance itself.
 
 | Capability | Description |
 |:---|:---|
-| **Bulk registration** | Registers any number of gateways in Smart-1 Cloud with only a Management API key, or through the Infinity Portal API. |
-| **Object configuration** | Sets the version, operating system, Spark hardware and SIC trust settings through the Management API. |
-| **Policy installation** | Waits for each gateway to establish SIC, then installs the Access Control and Threat Prevention policy. |
-| **Appliance configuration** | Optionally connects each appliance to Smart-1 Cloud over its local REST API. Supports Zero Touch appliances. |
-| **Version awareness** | Detects the Smart-1 Cloud management version and adapts SIC configuration to it, including R82.20. |
+| **Registration** | Registers any number of gateways in Smart-1 Cloud with only a Management API key. |
+| **Object configuration** | Creates the Spark gateway object with the parameters documented in the Smart-1 Cloud Administration Guide, after checking them against the tenant, and sets the SIC trust settings. |
+| **Policy installation** | Waits for each gateway to establish SIC, then installs the policy package: the Access Control policy, and the Threat Prevention policy on gateways where Threat Prevention blades are enabled. |
+| **Appliance configuration** | Connects each appliance to Smart-1 Cloud over its local REST API, when its credentials are configured. |
+| **Removal** | Returns the appliances to local management and deletes their gateway objects (`--delete`). |
 | **Validation and logging** | Validates all configuration files before the run and keeps a rotating DEBUG log of every run. |
 
 ### Architecture
 
 <p align="center">
-  <img src="docs/images/architecture.svg" alt="Architecture: the deployer calls the Infinity Portal API, the Management API and the Spark appliance local REST API" width="100%">
+  <img src="docs/images/architecture.svg" alt="Architecture: the deployer calls the Smart-1 Cloud Management API and the Spark appliance local REST API" width="100%">
 </p>
 
 ### Workflow
@@ -42,8 +42,13 @@ the appliance itself.
 
 Policy is installed last, because a gateway accepts policy only after it has connected to
 Smart-1 Cloud and established SIC. Phase 3 waits for each gateway to reach the "communicating"
-SIC state and installs policy only on those gateways. Zero Touch appliances that connect within
-that time are included automatically.
+SIC state and installs policy only on those gateways.
+
+Phase 2 runs only for gateways whose appliance credentials (`gateway_ip`, `gateway_username`,
+`gateway_password`) are configured. For other gateways the deployer registers and configures the
+object but does not connect the appliance, and it does not output the cloud token. Such gateways
+reach phase 3 only if their appliance is connected to Smart-1 Cloud by other means within
+`sic_timeout`. This path was not tested.
 
 A gateway that fails at any step is logged and skipped, and the run continues with the remaining
 gateways. The run ends with a summary of each gateway and exits with a non-zero code if any
@@ -61,15 +66,15 @@ pauses between appliance commands are omitted.
 
 | Phase | Start | End | Duration |
 |:---|:---:|:---:|---:|
-| **1** &nbsp; Register and configure the object | `21:32:11` | `21:33:19` | 1 min 8 s |
-| **2** &nbsp; Configure the appliance | `21:33:34` | `21:35:11` | 1 min 37 s |
-| **3** &nbsp; Wait for SIC and install policy | `21:35:21` | `21:36:07` | 46 s |
+| **1** &nbsp; Register and configure the object | `22:15:58` | `22:17:06` | 1 min 8 s |
+| **2** &nbsp; Configure the appliance | `22:17:21` | `22:18:58` | 1 min 37 s |
+| **3** &nbsp; Wait for SIC and install policy | `22:19:08` | `22:19:54` | 46 s |
 | **Total** | | | **3 min 56 s** |
 
 <details>
 <summary><b>Configuration used for this run</b></summary>
 
-`config/auth_data.json`, registration through the Management API (no Infinity Portal keys):
+`config/auth_data.json`:
 
 ```json
 {
@@ -123,7 +128,7 @@ Application Control and URL Filtering are enabled because this tenant adds new g
 
 ### Removal
 
-The same gateway removed with `--delete`, 1 min 2 s. The 5-second pauses between appliance commands
+The same gateway removed with `--delete`, 1 min 3 s. The 5-second pauses between appliance commands
 are omitted.
 
 <p align="center">
@@ -132,7 +137,7 @@ are omitted.
 
 **Result, verified after the run:** no gateway objects left in Smart-1 Cloud, `Playblocks_Gateways`
 empty, and on the appliance `show security-management` reports `locally-managed`, `show maas`
-reports `not-active`, and `fw sic_test` reports `SIC was not initialized`.
+reports `disabled`, and `fw sic_test` reports `SIC was not initialized`.
 
 ## Quick Start
 
@@ -183,25 +188,27 @@ python s1c_deploy_sparks_gw.py --delete
 For each gateway, `--delete`:
 
 1. Returns the appliance to local management, when its REST API credentials are configured:
-   `set maas mode stop-using`, `fw sic_reset`, `set security-management mode locally-managed`,
+   `set maas mode disable`, `fw sic_reset`, `set security-management mode locally-managed`,
    and checks the result with `show security-management`.
 2. Deletes the gateway object in Smart-1 Cloud, including its membership in groups such as
    `Playblocks_Gateways`, and publishes.
 
-A gateway that no longer exists in Smart-1 Cloud is skipped, so `--delete` can be run again
-safely. After `--delete`, the appliance can be deployed again from scratch.
+If the appliance reset fails, the gateway object is still deleted and the gateway is reported as
+failed in the removal summary. A gateway that no longer exists in Smart-1 Cloud is skipped, so
+`--delete` can be run again safely. After `--delete`, the appliance can be deployed again from
+scratch.
 
 ### Requirements
 
-- A Check Point Smart-1 Cloud tenant.
-- A Management API key, created in the Smart-1 Cloud application.
-- Optional: Infinity Portal API credentials (Client ID and Access Key). Not required on Smart-1
-  Cloud R82.20 and later. See [Gateway Registration](#gateway-registration).
+- A Check Point Smart-1 Cloud tenant on R82.20 (Management API 2.1).
+- The Management API key of the tenant. In Web SmartConsole, go to **Settings > API &
+  SmartConsole** and click **Generate** in the Management API section. Smart-1 Cloud supports only
+  one API key.
 - Python 3.9 or later on Windows or Linux.
-- For phase 2 (optional, not used with Zero Touch):
+- To configure the appliances (phase 2) and reset them with `--delete`:
   - Network access to the appliance local REST API, by default on port `4434`.
   - The REST API enabled on the appliance. It is off by default. Enable it in Gaia Clish with
-    `set rest-api mode on`.
+    `set rest-api mode true`.
 
 > [!WARNING]
 > The deployer installs the policy package exactly as it is published. Before you run it, make
@@ -211,9 +218,7 @@ safely. After `--delete`, the appliance can be deployed again from scratch.
 
 ## Version Compatibility
 
-The deployer detects the Smart-1 Cloud management version at run time and adapts the SIC
-configuration to it. No configuration change is required when Smart-1 Cloud is upgraded. The
-detected version is shown for each gateway:
+The deployer reads the Management API version at each login and shows it in the console:
 
 ```text
 INFO - Connected to Management API version 2.1
@@ -221,11 +226,10 @@ INFO - Connected to Management API version 2.1
 
 ### Smart-1 Cloud Management
 
-| Smart-1 Cloud | Management API | Registration | SIC configuration |
+| Smart-1 Cloud | Management API | Status | Notes |
 |:---:|:---:|:---:|:---|
-| **R82.20** | `2.1` | Management API or Infinity Portal | One-time password set after the object is converted to a Spark gateway, with `trust-settings.initiation-phase` set to `when_gateway_connects`. |
-| **R82.10** | `2.0.1` | Infinity Portal | One-time password set after the object is converted to a Spark gateway. |
-| **R82** | `2.0` | Infinity Portal | One-time password set after the object is converted to a Spark gateway. |
+| **R82.20** | `2.1` | ![supported](https://img.shields.io/badge/-supported-2EA44F?style=flat-square) | Gateways are created with `add-simple-gateway` and `trust-method: cloud_token`. SIC uses a one-time password with `trust-settings.initiation-phase` set to `when_gateway_connects`. |
+| **Earlier versions** | earlier than `2.1` | ![not supported](https://img.shields.io/badge/-not_supported-CF222E?style=flat-square) | Management API versions earlier than 2.1 cannot issue cloud tokens. Registration fails with `Management API ... cannot issue cloud tokens`. |
 
 > [!IMPORTANT]
 > **Smart-1 Cloud R82.20 requires the current version of the deployer.**
@@ -240,14 +244,20 @@ INFO - Connected to Management API version 2.1
 
 ### Spark Gateway Firmware
 
-| Firmware on the appliance | Smart-1 Cloud R82.20 | `version` in `config_data.json` |
+| Spark models | Minimum firmware | `version` in `config_data.json` |
 |:---|:---:|:---:|
-| **R82.00.X** | ![supported](https://img.shields.io/badge/-supported-2EA44F?style=flat-square) | `R82` |
-| **R81.10.X** | ![supported](https://img.shields.io/badge/-supported-2EA44F?style=flat-square) | `R81.10` |
-| **R80.20.X and earlier** | ![not supported](https://img.shields.io/badge/-not_supported-CF222E?style=flat-square) | Upgrade the appliance first |
+| **1500, 1600, 1800, 1900, 2000** | R81.10.X | `R81.10` or `R82` |
+| **2530/2550, 2560/2570, 2580** | R82.00.05 | `R82` |
+| **Quantum Edge** | R81.10.X | `R81.10` or `R82` |
+| **Firmware R80.20.X and earlier** | ![not supported](https://img.shields.io/badge/-not_supported-CF222E?style=flat-square) | Upgrade the appliance first |
+
+Models and minimum firmware are from the [Smart-1 Cloud Administration Guide](https://sc1.checkpoint.com/documents/Infinity_Portal/WebAdminGuides/EN/Check-Point-SmartCloud-Admin-Guide/CP_Check_Point_Smart-1_Cloud_AdminGuide.pdf)
+(Supported Gateways and Versions, 26 October 2026). Use `R81.10` for appliances on R81.10.X and
+`R82` for appliances on R82.00.X. The deployer was tested with a Quantum Spark VNF appliance on
+R81.10.17, configured as `1800 Appliances`.
 
 > [!WARNING]
-> Rugged 1200R appliances are not supported by Smart-1 Cloud R82.20.
+> Rugged 1200R appliances are not supported by Management Servers R82.20 (R82.20 Release Notes).
 
 > [!TIP]
 > To list the versions and hardware models that your tenant accepts, run the Management API
@@ -256,15 +266,23 @@ INFO - Connected to Management API version 2.1
 
 ### Gateway Registration
 
-Each gateway is registered in Smart-1 Cloud before it is configured. The deployer chooses the
-method from `auth_data.json`:
+Each gateway is created through the Management API, as described in the
+[Smart-1 Cloud Administration Guide](https://sc1.checkpoint.com/documents/Infinity_Portal/WebAdminGuides/EN/Check-Point-SmartCloud-Admin-Guide/CP_Check_Point_Smart-1_Cloud_AdminGuide.pdf) (Example: Adding a Simple Gateway with the
+Web API):
 
-| Method | When it is used | How it works |
-|:---|:---|:---|
-| **Management API**<br>![recommended](https://img.shields.io/badge/-recommended-2EA44F?style=flat-square) | `client_id`, `access_key` and `portal_url` are not set | Creates the gateway object with an IP address generated by Smart-1 Cloud (`add-simple-gateway` with `auto-generate-ip`) and issues a cloud token (`set-trust` with `trust-method: cloud_token`). Requires Management API 2.1 (R82.20). |
-| **Infinity Portal API**<br>![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | `client_id`, `access_key` and `portal_url` are set | Registers the gateway through `POST /app/maas/api/v1/gateways` and uses the returned token. |
+| Step | Management API command | Result |
+|:---:|:---|:---|
+| **1** | `show-gateway-capabilities` with `platform: smb` | `hardware`, `net_type` and `version` are checked against the values the tenant accepts, before any object is created |
+| **2** | `add-simple-gateway` with `hardware` (for example `1800 Appliances`), `hardware-subtype`, `version`, `os-name: Gaia Embedded`, `trust-method: cloud_token` and `auto-generate-ip: true` | Spark gateway object with `global and automatic` topology, an IP address generated by Smart-1 Cloud, and a cloud token |
+| **3** | `set-simple-gateway` with `one-time-password` and `trust-settings.initiation-phase: when_gateway_connects` | SIC waits for the appliance. The SIC name is generated by the management server. |
 
-In both cases, the appliance joins Smart-1 Cloud with `connect maas auth-token <token>`.
+The one-time password is set in a separate call, because the Management API rejects
+`one-time-password` together with `trust-method: cloud_token`.
+
+In phase 2, the appliance joins Smart-1 Cloud with `connect maas auth-token <token>` and pulls its
+certificate from the management server address, which the deployer reads from the
+`Management_Service` object (a `100.64.x.x` address). The token is masked in the console and the
+log file.
 
 ### Tested Environment
 
@@ -298,13 +316,16 @@ config/
 ```
 
 > [!NOTE]
-> JSON does not support comments. Each file must contain only the keys described below.
+> JSON does not support comments, so do not add `//` notes to the files. Keys that are not
+> described below are ignored.
 
 > [!IMPORTANT]
 > **Upgrading from an earlier version:** the configuration files were previously tracked in the
 > repository and are now excluded. Copy your `config` folder to a safe location before you run
 > `git pull`, then copy your three files back into `config/`. If `git pull` reports local changes
 > to the configuration files, run `git checkout -- config` after the backup and pull again.
+> Earlier versions used Infinity Portal API keys (`client_id`, `access_key`, `portal_url`) in
+> `auth_data.json`. They are no longer used and can be removed.
 
 ### `config/auth_data.json`
 
@@ -318,12 +339,9 @@ config/
 
 | Key | Required | Description |
 |:---|:---:|:---|
-| `instance` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | Smart-1 Cloud instance name, taken from the Management API URL `https://<instance>.maas.checkpoint.com/<context>/web_api`. |
+| `instance` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | Smart-1 Cloud instance name, taken from the Management API URL `https://<instance>.maas.checkpoint.com/<context>/web_api`. Web SmartConsole shows this URL in **Settings > API & SmartConsole**. |
 | `context` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | Smart-1 Cloud context ID, taken from the same URL. |
-| `api_key` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | Management API key created in the Smart-1 Cloud application. |
-| `client_id` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Infinity Portal API Client ID. Set with `access_key` and `portal_url` to register gateways through the Infinity Portal API. |
-| `access_key` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Infinity Portal API Access Key. |
-| `portal_url` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Infinity Portal API gateway for your region, for example `https://cloudinfra-gw-us.portal.checkpoint.com`. |
+| `api_key` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | Management API key of the tenant, generated in Web SmartConsole in **Settings > API & SmartConsole**. |
 
 ### `config/config_data.json`
 
@@ -352,9 +370,9 @@ config/
 | Key | Required | Description |
 |:---|:---:|:---|
 | `gw_name` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | Gateway name, used for the Smart-1 Cloud registration and the gateway object. |
-| `version` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | Firmware family of the appliance. See [Spark Gateway Firmware](#spark-gateway-firmware). |
-| `hardware` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | Spark appliance model family as shown in SmartConsole, for example `1575/1595` or `1800`. |
-| `net_type` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | Appliance variant, for example `Wired` or `Wireless`. |
+| `version` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | Firmware family of the appliance, as accepted by the tenant: `R81.10` or `R82`. See [Spark Gateway Firmware](#spark-gateway-firmware). |
+| `hardware` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | Spark model as listed by `show-gateway-capabilities`, for example `1800 Appliances` or `1575/1595 Appliances`. The short form without "Appliances", for example `1800`, is also accepted. |
+| `net_type` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | Appliance variant, not case-sensitive: `Wired`, `Wireless`, `DSL`, `Wireless + DSL` or `WiFi-LTE`, as listed by `show-gateway-capabilities`. |
 | `sic_key` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | One-time password used to establish SIC. |
 | `gateway_ip` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Address and port of the appliance local REST API, for example `203.0.113.171:4434`. |
 | `gateway_username` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Administrator user name on the appliance. |
@@ -363,14 +381,15 @@ config/
 | `url_filtering` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Enable the URL Filtering blade. Default `false`. |
 
 > [!NOTE]
-> In tenants that use Playblocks, Smart-1 Cloud adds new gateways to the `Playblocks_Gateways`
-> group shortly after they are deployed. The Quarantine Policy rules for that group require
-> Application Control and URL Filtering. Set both to `true` for those gateways, otherwise later
-> policy installations fail with *"Rule 2 contains applications ... that require the 'Application
+> In the test tenant, which uses Playblocks, new gateways were added to the `Playblocks_Gateways`
+> group shortly after they were deployed. The Quarantine Policy rules for that group require
+> Application Control and URL Filtering. If this happens in your tenant, set both to `true` for
+> those gateways, otherwise later policy installations fail with *"Rule 2 contains applications ... that require the 'Application
 > Control' or the 'URL Filtering' blades"*.
 
-To have the deployer configure the appliance in phase 2, provide all three of `gateway_ip`,
-`gateway_username` and `gateway_password`. Omit them for appliances onboarded with Zero Touch.
+To have the deployer configure the appliance in phase 2 and reset it with `--delete`, provide all
+three of `gateway_ip`, `gateway_username` and `gateway_password`. See [Workflow](#workflow) for
+gateways without them.
 
 ### `config/policy_package_data.json`
 
@@ -385,7 +404,7 @@ To have the deployer configure the appliance in phase 2, provide all three of `g
 | Key | Required | Description |
 |:---|:---:|:---|
 | `policy_package` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | Name of the policy package to install on the gateways. |
-| `sic_timeout` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Seconds to wait for gateways to establish SIC before policy installation. Default `600`. Increase it for Zero Touch appliances that connect later. |
+| `sic_timeout` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Seconds to wait for gateways to establish SIC before policy installation. Default `600`. |
 | `install_delay` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Reserved. Not used by the current version of the deployer. |
 
 ## Logging
@@ -400,13 +419,13 @@ console and in the log file.
 
 **Resilience**
 
-- Infinity Portal API requests are retried up to 3 times.
 - All configuration files are validated before the deployment starts.
 - Clish output from the appliance is checked, so a rejected command fails that gateway instead of
   being reported as successful.
 - SIC is confirmed with `test-sic-status`, which actively tests the connection.
-- After registration, the deployer waits up to 3 minutes for Smart-1 Cloud to create the gateway
-  object.
+- The `hardware`, `net_type` and `version` of each gateway are checked against the tenant before
+  any object is created. A gateway with an unsupported value fails with a list of the accepted
+  values.
 - Every HTTP request has a 60-second timeout, and publish and policy installation tasks have a
   30-minute limit, so a stalled connection cannot stop the run indefinitely.
 - Each phase opens and closes its own Management API session.
@@ -438,7 +457,7 @@ Expand an entry for its cause and resolution.
 
 **Cause:** The appliance did not connect to Smart-1 Cloud within `sic_timeout`
 
-**Resolution:** Check the appliance connectivity and the phase 2 log entries. For Zero Touch appliances, increase `sic_timeout`, or install policy from SmartConsole once the gateway connects.
+**Resolution:** Check the appliance connectivity and the phase 2 log entries. If the appliance needs more time, increase `sic_timeout`, or install policy from SmartConsole once the gateway connects.
 
 </details>
 
@@ -456,7 +475,7 @@ Expand an entry for its cause and resolution.
 
 **Cause:** The appliance local REST API is disabled (default)
 
-**Resolution:** On the appliance, run `set rest-api mode on` in Gaia Clish.
+**Resolution:** On the appliance, run `set rest-api mode true` in Gaia Clish.
 
 </details>
 
@@ -483,7 +502,7 @@ Expand an entry for its cause and resolution.
 
 **Cause:** Earlier versions of the deployer left the gateway object with `per interface` topology and no interfaces
 
-**Resolution:** Update to the current version, which sets `global and automatic` topology for Spark gateways. For an existing gateway, set the topology to `global and automatic` in SmartConsole and install policy.
+**Resolution:** Update to the current version. It creates Spark gateways with the documented `add-simple-gateway` parameters, which give them `global and automatic` topology. For an existing gateway, set the topology to `global and automatic` in SmartConsole and install policy.
 
 </details>
 
@@ -506,11 +525,20 @@ Expand an entry for its cause and resolution.
 </details>
 
 <details>
-<summary><code>Gateway object ... not created yet</code> repeats and then fails</summary>
+<summary><code>hardware '...' is not supported</code>, <code>net_type '...' is not supported</code> or <code>version '...' is not supported</code></summary>
 
-**Cause:** Smart-1 Cloud did not create the gateway object within 3 minutes
+**Cause:** The value in `config_data.json` is not one that the tenant accepts for Spark gateways
 
-**Resolution:** Confirm that the gateway is listed in the Smart-1 Cloud application in the Infinity Portal, then run the deployer again.
+**Resolution:** Use one of the values listed in the error message. They come from `show-gateway-capabilities`.
+
+</details>
+
+<details>
+<summary><code>Management API ... cannot issue cloud tokens</code></summary>
+
+**Cause:** The Smart-1 Cloud tenant is not on R82.20 (Management API 2.1)
+
+**Resolution:** Gateway registration requires Smart-1 Cloud R82.20. See [Version Compatibility](#version-compatibility).
 
 </details>
 
@@ -524,9 +552,9 @@ Expand an entry for its cause and resolution.
 </details>
 
 <details>
-<summary>The gateway is rejected or is not listed</summary>
+<summary>The appliance runs firmware earlier than R81.10.X, or is a Rugged 1200R appliance</summary>
 
-**Cause:** Firmware earlier than R81.10.X, or a Rugged 1200R appliance
+**Cause:** Smart-1 Cloud R82.20 does not support these appliances
 
 **Resolution:** See [Version Compatibility](#version-compatibility).
 
@@ -544,17 +572,40 @@ For full details of a run, see `logs/s1c_deploy_sparks_gw.log`.
   because it contains API responses.
 - The local REST API client does not verify the appliance certificate. Run phase 2 only on
   trusted management networks.
-- Use a dedicated Management API key for the deployer and revoke it when it is no longer needed.
+- Smart-1 Cloud supports only one Management API key, and the deployer uses it. Protect it like an
+  administrator password.
 
 ## References
 
-| Resource | Link |
-|:---|:---|
-| **Smart-1 Cloud API Reference** | [SwaggerHub](https://app.swaggerhub.com/apis-docs/Check-Point/smart-1_cloud_api/1.0.0#/) |
-| **Check Point Management API Reference** | [sc1.checkpoint.com](https://sc1.checkpoint.com/documents/latest/APIs/) |
-| **R82.20 Release Notes** | [PDF](https://sc1.checkpoint.com/documents/R82.20/WebAdminGuides/EN/CP_R82.20_RN/CP_R82.20_ReleaseNotes.pdf) |
+The deployer and this README were checked against these documents:
+
+| Resource | Edition | Used for |
+|:---|:---|:---|
+| **[Smart-1 Cloud Administration Guide](https://sc1.checkpoint.com/documents/Infinity_Portal/WebAdminGuides/EN/Check-Point-SmartCloud-Admin-Guide/CP_Check_Point_Smart-1_Cloud_AdminGuide.pdf)** | 26 October 2026 | Adding a Spark gateway with the Web API, cloud token, supported Spark models and versions, MaaS commands, API key |
+| **[Quantum Spark R81.10.X CLI Reference Guide](https://sc1.checkpoint.com/documents/SMB_R81.10.X/CLI/EN/CP_R81.10.X_1500_1600_1800_1900_2000_Appliances_CLI_Guide.pdf)** | 5 October 2026 | `connect maas`, `set maas mode`, `set security-management mode`, `set sic_init`, `fetch certificate`, `fw sic_reset`, `set rest-api` |
+| **[Quantum Spark R82.00.X Centrally Managed Administration Guide](https://sc1.checkpoint.com/documents/Appliances/Quantum_Spark_R82.00.X/AdminGuides_Centrally_Managed/EN/CP_R82.00.X_Quantum_Spark_Appliances_Centrally_Managed_AdminGuide.pdf)** | 22 September 2026 | Smart-1 Cloud onboarding of R82.00.X appliances |
+| **[Check Point Management API Reference](https://sc1.checkpoint.com/documents/latest/APIs/)** | v2.1 | `add-simple-gateway`, `set-simple-gateway` (including `trust-settings`), `show-gateway-capabilities`, `test-sic-status`, `delete-simple-gateway`, `install-policy` |
+| **[R82.20 Release Notes](https://sc1.checkpoint.com/documents/R82.20/WebAdminGuides/EN/CP_R82.20_RN/CP_R82.20_ReleaseNotes.pdf)** | R82.20 | Supported Spark versions, Rugged 1200R |
 
 ## Changelog
+
+### November 2026: Documented Spark API, Infinity Portal registration removed
+
+Verified again end to end in the lab (deploy and `--delete`).
+
+- Spark gateways are created with one `add-simple-gateway` call, using the parameters from the
+  Smart-1 Cloud Administration Guide (`hardware`, `hardware-subtype`, `version`,
+  `trust-method: cloud_token`, `auto-generate-ip`). The undocumented `set-generic-object`
+  conversion, the explicit topology setting and the SIC name built by the deployer are no longer
+  needed.
+- `hardware`, `net_type` and `version` are checked against `show-gateway-capabilities` before any
+  object is created.
+- The management server address for `fetch certificate` is read from the `Management_Service`
+  object instead of using a fixed `100.64.0.52`.
+- `--delete` uses `set maas mode disable`, the command documented to stop Smart-1 Cloud management.
+- Gateways are registered only through the Management API. The Infinity Portal API registration and
+  its `client_id`, `access_key` and `portal_url` keys were removed, together with
+  `utils/smart1_cloud_api.py`. The deployer now requires Smart-1 Cloud R82.20.
 
 ### November 2026: Spark topology fix and `--delete`
 
