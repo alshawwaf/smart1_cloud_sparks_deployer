@@ -173,12 +173,17 @@ class ManagementAPI:
                     "details-level": "full"
                 }
             )
-            token = (gateway.get('trust-details') or {}).get('authentication-token')
+            trust_details = gateway.get('trust-details') or {}
+            token = trust_details.get('authentication-token')
             if not token:
                 raise ValueError(f"add-simple-gateway did not return a cloud token for {gw_name}")
             self._publish()
             log.info(f"Registered gateway {gw_name} successfully")
-            return {'token': token, 'gateway_id': gateway.get('uid')}
+            return {
+                'token': token,
+                'token_expiration': trust_details.get('token-expiration-date'),
+                'gateway_id': gateway.get('uid')
+            }
         finally:
             self._logout()
 

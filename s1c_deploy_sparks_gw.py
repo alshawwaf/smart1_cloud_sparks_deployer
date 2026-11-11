@@ -6,14 +6,20 @@ Smart-1 Cloud Gateway Deployment Orchestrator
 see the readme file for more details
 """
 
-import argparse, sys, time, json
-from typing import Dict, List, Tuple
+import argparse, os, sys, time, json
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 from utils.logger_main import log, redact
 from utils.load_config_file import read_config_file, AuthConfig, GatewayConfig, PolicyPackage
 from utils.smart1_cloud_mgmt_api import ManagementAPI
 from utils.sparks_rest_api import SparksGatewayAPI
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Cloud tokens of gateways without appliance credentials, for manual onboarding
+TOKEN_DIR = Path("tokens")
+MANUAL_ONBOARDING = "registered, token saved for manual onboarding"
 
 
 def deploy_s1c_sparks_gw(delete: bool = False) -> None:
@@ -76,13 +82,20 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
             # 2. Cloud Configuration
             log.info("Configuring Gateway Object settings")
             configure_gateway(mgmt_api, gateway)
-            configured_gateways.append(gateway.gw_name)
-            results[gateway.gw_name] = "configured, waiting for SIC"
 
-            # Track gateways needing physical config
             if all([gateway.gateway_ip, gateway.gateway_username, gateway.gateway_password]):
+                # Track gateways needing physical config
+                configured_gateways.append(gateway.gw_name)
+                results[gateway.gw_name] = "configured, waiting for SIC"
                 pending_physical_config.append(gateway)
                 log.info("Queueing for physical configuration")
+            else:
+                # No appliance credentials: save the token for manual onboarding. These
+                # gateways are not part of the SIC wait and policy installation.
+                token_file = save_onboarding_file(gateway, registration.get('token_expiration'), mgmt_ip)
+                results[gateway.gw_name] = MANUAL_ONBOARDING
+                log.info(f"No appliance credentials for {gateway.gw_name}. Cloud token and onboarding "
+                         f"steps saved to {token_file.as_posix()}")
 
             log.info("Waiting 15 seconds for stabilization")
             time.sleep(15)
@@ -93,9 +106,12 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
             continue
 
     if not configured_gateways:
-        log.error("No gateways were configured, skipping policy installation")
+        if any(state == MANUAL_ONBOARDING for state in results.values()):
+            log.info("No gateways to configure over the appliance REST API, skipping phases 2 and 3")
+        else:
+            log.error("No gateways were configured, skipping policy installation")
         log_summary(results)
-        return False
+        return all(state == MANUAL_ONBOARDING for state in results.values())
 
     # Phase 2: Physical Gateway Configuration
     # The appliance must connect to Smart-1 Cloud and establish SIC before
@@ -113,8 +129,7 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
                       f"{redact(str(e), [gateway.maas_token, gateway.sic_key, gateway.gateway_password])}")
             continue
 
-    # Phase 3: Policy Installation, only on gateways that established SIC.
-    # Appliances connected by other means are included once they communicate.
+    # Phase 3: Policy Installation, only on gateways that established SIC
     log.info(f"Waiting up to {policy_config.sic_timeout}s for gateways to establish SIC")
     ready_gateways = mgmt_api.wait_for_sic(configured_gateways, timeout=policy_config.sic_timeout)
     for gw_name in configured_gateways:
@@ -139,7 +154,53 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
         log.error("No gateway established SIC, skipping policy installation")
 
     log_summary(results)
-    return all(state == "deployed" for state in results.values())
+    return all(state in ("deployed", MANUAL_ONBOARDING) for state in results.values())
+
+
+def save_onboarding_file(gateway: GatewayConfig, token_expiration: Optional[str], mgmt_ip: str) -> Path:
+    """
+    Write the cloud token and the onboarding steps for an appliance that the deployer does not
+    configure. The steps follow the Smart-1 Cloud Administration Guide (Connecting a Spark
+    Firewall Appliance). The SIC one-time password is not written to the file.
+    """
+    TOKEN_DIR.mkdir(parents=True, exist_ok=True)
+    token_file = TOKEN_DIR / f"{gateway.gw_name}.txt"
+    content = f"""Smart-1 Cloud onboarding for gateway {gateway.gw_name}
+Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Token expires: {token_expiration or 'not reported'}
+
+This file contains a credential. Delete it after the appliance is connected.
+
+Cloud token:
+{gateway.maas_token}
+
+The gateway object already exists in Smart-1 Cloud, with the SIC one-time password set to the
+sic_key value of {gateway.gw_name} in config_data.json.
+
+Option 1 - Spark WebUI
+  1. Go to Home > Security Management and click Setup.
+  2. Select "Use Security Management service" and click Next.
+  3. Paste the cloud token above and click Connect.
+  4. Wait for "Connected successfully to the Security Management Server", then click Next.
+  5. Enter the one-time password (sic_key) and click Next.
+     Do not select "Initiate trusted communication without authentication".
+  6. Select "Connect to the Security Management Server now" and click Connect, then Finish.
+     The message "unable to fetch the Security Policy" is expected at this point.
+
+Option 2 - Gaia Clish
+  connect maas auth-token <cloud token above>
+  set security-management mode centrally-managed
+  set sic_init password <sic_key>
+  fetch certificate mgmt-ipv4-address {mgmt_ip} gateway-name {gateway.gw_name}
+
+Then install the policy on {gateway.gw_name} from SmartConsole.
+"""
+    token_file.write_text(content, encoding='utf-8')
+    try:
+        os.chmod(token_file, 0o600)  # owner read/write only, where the OS supports it
+    except OSError:
+        pass
+    return token_file
 
 
 def remove_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig]) -> bool:
@@ -161,10 +222,15 @@ def remove_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig]) -
                 log.error(f"Appliance reset failed for {gateway.gw_name}: "
                           f"{redact(str(e), [gateway.gateway_password])}")
         else:
-            log.info("No appliance credentials, skipping appliance reset")
+            log.info("No appliance credentials, skipping appliance reset. Reset the appliance manually.")
         try:
             mgmt_api.delete_gateway(gateway.gw_name)
             results[gateway.gw_name] = "removed" if appliance_ok else "deleted, failed: appliance reset"
+            # The cloud token is no longer valid once the object is deleted
+            token_file = TOKEN_DIR / f"{gateway.gw_name}.txt"
+            if token_file.exists():
+                token_file.unlink()
+                log.info(f"Deleted {token_file.as_posix()}")
         except Exception as e:
             log.error(f"Failed to delete {gateway.gw_name}: {str(e)}")
             results[gateway.gw_name] = "failed: object deletion"
@@ -179,12 +245,16 @@ def log_summary(results: Dict[str, str]) -> None:
     """Log the final state of each gateway"""
     log.info("Deployment summary:")
     for gw_name, state in results.items():
-        if state == "deployed":
+        if state in ("deployed", MANUAL_ONBOARDING):
             log.info(f"  {gw_name}: {state}")
         else:
             log.error(f"  {gw_name}: {state}")
     deployed = sum(1 for state in results.values() if state == "deployed")
+    manual = sum(1 for state in results.values() if state == MANUAL_ONBOARDING)
     log.info(f"{deployed} of {len(results)} gateways deployed")
+    if manual:
+        log.info(f"{manual} of {len(results)} gateways registered for manual onboarding "
+                 f"(see {TOKEN_DIR.as_posix()}/)")
 
 
 def spark_settings(gateway: GatewayConfig, capabilities: Dict[str, List[str]]) -> Tuple[str, str, str]:

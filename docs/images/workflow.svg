@@ -78,7 +78,8 @@
       <text x="479" y="231" class="mono code">set sic_init password</text>
       <circle cx="457" cy="268" r="10" class="dot3"/><text x="457" y="272" text-anchor="middle" class="num">4</text>
       <text x="479" y="273" class="mono code">fetch certificate</text>
-      <text x="449" y="372" class="note">Runs when appliance credentials are set</text>
+      <text x="449" y="356" class="note">Runs when appliance credentials are set.</text>
+      <text x="449" y="376" class="note">Otherwise the token is saved to tokens/</text>
     </g>
 
     <path class="chev" d="M788 200 l14 15 l-14 15"/>
