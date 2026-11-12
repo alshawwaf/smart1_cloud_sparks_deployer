@@ -13,7 +13,7 @@
         "gw_name": "sparks2",
         "version": "R82",
         "hardware": "1800",
-        "net_type": "Wireless",
+        "net_type": "Wired",
         "sic_key": "your-sic-key"
     }
 ]
