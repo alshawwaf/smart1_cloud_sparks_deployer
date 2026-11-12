@@ -304,6 +304,25 @@ R81.10.17, configured as `1800 Appliances`.
 > command `show-gateway-capabilities` with `{"platform": "smb"}`, for example from the
 > SmartConsole command line.
 
+### net_type values by model
+
+`show-gateway-capabilities` lists the subtypes of all Spark models together, but each model
+accepts only some of them. These are the combinations that Smart-1 Cloud R82.20 accepted when
+tested with `add-simple-gateway` in November 2026:
+
+| `hardware` | `version` | Accepted `net_type` |
+|:---|:---:|:---|
+| **1530/1550**, **1535/1555** | `R81.10`, `R82` | `Wired`, `Wireless` |
+| **1570/1590**, **1575/1595** | `R81.10`, `R82` | `Wired`, `Wireless`, `Wireless + DSL`, `WiFi-LTE` |
+| **1600**, **1800**, **1900/2000** | `R81.10`, `R82` | `Wired` |
+| **2530/2550**, **2560/2570** | `R82` | `Wired`, `WiFi-LTE` |
+| **2580**, **2590** | `R82` | `Wired` |
+
+> [!IMPORTANT]
+> The 2530/2550 and 2560/2570 Wi-Fi models are registered as `WiFi-LTE`. `Wireless` is rejected
+> for these models with *"Hardware/hardware-subtype value is not valid or doesn't match specified
+> platform"*. `DSL` on its own was not accepted for any model.
+
 ### Gateway Registration
 
 Each gateway is created through the Management API, as described in the
@@ -401,7 +420,7 @@ config/
         "gw_name": "sparks2",
         "version": "R82",
         "hardware": "1800",
-        "net_type": "Wireless",
+        "net_type": "Wired",
         "sic_key": "your-sic-key"
     }
 ]
@@ -412,7 +431,7 @@ config/
 | `gw_name` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | Gateway name, used for the Smart-1 Cloud registration and the gateway object. |
 | `version` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | Firmware family of the appliance, as accepted by the tenant: `R81.10` or `R82`. See [Spark Gateway Firmware](#spark-gateway-firmware). |
 | `hardware` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | Spark model as listed by `show-gateway-capabilities`, for example `1800 Appliances` or `1575/1595 Appliances`. The short form without "Appliances", for example `1800`, is also accepted. |
-| `net_type` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | Appliance variant, not case-sensitive: `Wired`, `Wireless`, `DSL`, `Wireless + DSL` or `WiFi-LTE`, as listed by `show-gateway-capabilities`. |
+| `net_type` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | Appliance variant, not case-sensitive: `Wired`, `Wireless`, `Wireless + DSL` or `WiFi-LTE`. Each model accepts only some of them, for example a 2560/2570 with Wi-Fi uses `WiFi-LTE`, not `Wireless`. See [net_type values by model](#net_type-values-by-model). |
 | `sic_key` | ![required](https://img.shields.io/badge/-required-0969DA?style=flat-square) | One-time password used to establish SIC. |
 | `gateway_ip` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Address and port of the appliance local REST API, for example `203.0.113.171:4434`. |
 | `gateway_username` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Administrator user name on the appliance. |
@@ -583,6 +602,17 @@ Expand an entry for its cause and resolution.
 </details>
 
 <details>
+<summary><code>... does not accept net_type '...'</code></summary>
+
+**Cause:** The model does not accept this `net_type`, although the tenant lists it for other
+models. For example, a 2560/2570 with Wi-Fi set to `Wireless`.
+
+**Resolution:** Use a value from [net_type values by model](#net_type-values-by-model), for example
+`WiFi-LTE` for a 2560/2570 with Wi-Fi. Nothing is created in Smart-1 Cloud when this error occurs.
+
+</details>
+
+<details>
 <summary><code>Management API ... cannot issue cloud tokens</code></summary>
 
 **Cause:** The Smart-1 Cloud tenant is not on R82.20 (Management API 2.1)
@@ -639,6 +669,15 @@ The deployer and this README were checked against these documents:
 | **[R82.20 Release Notes](https://sc1.checkpoint.com/documents/R82.20/WebAdminGuides/EN/CP_R82.20_RN/CP_R82.20_ReleaseNotes.pdf)** | R82.20 | Supported Spark versions, Rugged 1200R |
 
 ## Changelog
+
+### November 2026: net_type values by model
+
+- New [net_type values by model](#net_type-values-by-model) table, tested against Smart-1 Cloud
+  R82.20. The 2530/2550 and 2560/2570 Wi-Fi models use `WiFi-LTE`, not `Wireless`.
+- A model and `net_type` combination that Smart-1 Cloud rejects is now reported by name, with a
+  pointer to the table, instead of the generic API error.
+- The example configuration used `Wireless` for an 1800, which Smart-1 Cloud rejects. It now uses
+  `Wired`.
 
 ### November 2026: Verified on Management API 2.2
 

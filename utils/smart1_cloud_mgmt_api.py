@@ -160,19 +160,29 @@ class ManagementAPI:
             self._login()
             self._require_api_version()
             log.info(f"Registering gateway {gw_name} through the Management API")
-            gateway = self._execute_api_call(
-                "add-simple-gateway",
-                {
-                    "name": gw_name,
-                    "hardware": hardware,
-                    "hardware-subtype": hardware_subtype,
-                    "version": version,
-                    "os-name": "Gaia Embedded",
-                    "trust-method": "cloud_token",
-                    "auto-generate-ip": True,
-                    "details-level": "full"
-                }
-            )
+            try:
+                gateway = self._execute_api_call(
+                    "add-simple-gateway",
+                    {
+                        "name": gw_name,
+                        "hardware": hardware,
+                        "hardware-subtype": hardware_subtype,
+                        "version": version,
+                        "os-name": "Gaia Embedded",
+                        "trust-method": "cloud_token",
+                        "auto-generate-ip": True,
+                        "details-level": "full"
+                    }
+                )
+            except requests.exceptions.HTTPError as e:
+                # show-gateway-capabilities lists the subtypes of all models, but each model
+                # accepts only some of them, for example 2560/2570 takes WiFi-LTE, not Wireless
+                if "doesn't match specified platform" in e.response.text:
+                    raise ValueError(
+                        f"{hardware} with version {version} does not accept net_type '{hardware_subtype}'. "
+                        "See 'net_type values by model' in the README."
+                    ) from e
+                raise
             trust_details = gateway.get('trust-details') or {}
             token = trust_details.get('authentication-token')
             if not token:
