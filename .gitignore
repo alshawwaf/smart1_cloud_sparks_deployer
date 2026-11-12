@@ -4,3 +4,4 @@
 .vscode
 logs
 tokens/
+__pycache__/
