@@ -1,14 +1,17 @@
+"""Reads and validates the JSON configuration files"""
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ValidationError, ConfigDict
 
 class AuthConfig(BaseModel):
+    """Smart-1 Cloud tenant and Management API key (auth_data.json)"""
     instance: str
     context: str
     api_key: str
 
 class GatewayConfig(BaseModel):
+    """One gateway in config_data.json"""
     gw_name: str
     version: str
     hardware: str
@@ -22,44 +25,45 @@ class GatewayConfig(BaseModel):
     application_control: bool = False
     url_filtering: bool = False
     maas_token: Optional[str] = None
-    
+
     # v2 configuration syntax
     model_config = ConfigDict(frozen=False)
 
 class PolicyPackage(BaseModel):
+    """Policy package and SIC wait (policy_package_data.json)"""
     policy_package: str
     install_delay: int = 30  # Default 30 seconds if not specified
     sic_timeout: int = 600  # Seconds to wait for gateways to establish SIC before policy install
     model_config = ConfigDict(frozen=False)
 
-    
+
 def read_config_file(file_name: str) -> Any:
     """
     Original file reading function with added validation
     """
     config_path = Path(file_name)
-    
+
     if not config_path.exists():
         example = config_path.with_name(f"{config_path.stem}.example{config_path.suffix}")
         raise FileNotFoundError(
             f"Config file {file_name} not found. Copy {example.as_posix()} to "
             f"{config_path.as_posix()} and fill in your values."
         )
-    
-    with config_path.open('r') as f:
+
+    with config_path.open('r', encoding='utf-8') as f:
         try:
             config_data = json.load(f)
-            
+
             # Automatically validate based on file name
             if "auth_data" in file_name:
                 return validate_auth_config(config_data)
-            elif "config_data" in file_name:
+            if "config_data" in file_name:
                 return validate_gateway_config(config_data)
-            elif "policy_package_data" in file_name:
+            if "policy_package_data" in file_name:
                 return validate_policy_package_config(config_data)
-                
+
             return config_data
-            
+
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in {file_name}") from e
 
@@ -76,7 +80,7 @@ def validate_gateway_config(config: List[Dict]) -> List[GatewayConfig]:
         return [GatewayConfig(**item) for item in config]
     except ValidationError as e:
         raise ValueError(f"Invalid gateway configuration: {str(e)}") from e
-    
+
 def validate_policy_package_config(config: Dict) -> PolicyPackage:
     """Validation wrapper for policy package data"""
     try:
