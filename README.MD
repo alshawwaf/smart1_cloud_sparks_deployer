@@ -24,7 +24,7 @@ the appliance itself.
 | **Registration** | Registers any number of gateways in Smart-1 Cloud with only a Management API key. |
 | **Object configuration** | Creates the Spark gateway object with the parameters documented in the Smart-1 Cloud Administration Guide, after checking them against the tenant, and sets the SIC trust settings. |
 | **Policy installation** | Waits for each gateway to establish SIC, then installs the policy package: the Access Control policy, and the Threat Prevention policy on gateways where Threat Prevention blades are enabled. |
-| **Appliance configuration** | Connects each appliance to Smart-1 Cloud over its local REST API, when its credentials are configured. |
+| **Appliance configuration** | Connects each appliance to Smart-1 Cloud over its local REST API, when its credentials are configured. Otherwise, saves the cloud token and the onboarding steps to a local file for manual onboarding. |
 | **Removal** | Returns the appliances to local management and deletes their gateway objects (`--delete`). |
 | **Validation and logging** | Validates all configuration files before the run and keeps a rotating DEBUG log of every run. |
 
@@ -45,10 +45,11 @@ Smart-1 Cloud and established SIC. Phase 3 waits for each gateway to reach the "
 SIC state and installs policy only on those gateways.
 
 Phase 2 runs only for gateways whose appliance credentials (`gateway_ip`, `gateway_username`,
-`gateway_password`) are configured. For other gateways the deployer registers and configures the
-object but does not connect the appliance, and it does not output the cloud token. Such gateways
-reach phase 3 only if their appliance is connected to Smart-1 Cloud by other means within
-`sic_timeout`. This path was not tested.
+`gateway_password`) are configured. For a gateway without them, the deployer registers and
+configures the object, then saves the cloud token and the onboarding steps to
+`tokens/<gw_name>.txt` (see [Manual Onboarding](#manual-onboarding)). These gateways are not part
+of phases 2 and 3: connect the appliance with the steps in the file, then install the policy from
+SmartConsole.
 
 A gateway that fails at any step is logged and skipped, and the run continues with the remaining
 gateways. The run ends with a summary of each gateway and exits with a non-zero code if any
@@ -196,7 +197,29 @@ For each gateway, `--delete`:
 If the appliance reset fails, the gateway object is still deleted and the gateway is reported as
 failed in the removal summary. A gateway that no longer exists in Smart-1 Cloud is skipped, so
 `--delete` can be run again safely. After `--delete`, the appliance can be deployed again from
-scratch.
+scratch. For a gateway without appliance credentials, `--delete` deletes the object and its token
+file, and the appliance must be reset manually.
+
+### Manual Onboarding
+
+To onboard an appliance yourself, for example when the machine that runs the deployer cannot reach
+it, leave out `gateway_ip`, `gateway_username` and `gateway_password` for that gateway. The
+deployer then:
+
+1. Registers and configures the gateway object as usual.
+2. Saves `tokens/<gw_name>.txt` with the cloud token, its expiration date, and the onboarding
+   steps for the Spark WebUI and for Gaia Clish, taken from the
+   [Smart-1 Cloud Administration Guide](https://sc1.checkpoint.com/documents/Infinity_Portal/WebAdminGuides/EN/Check-Point-SmartCloud-Admin-Guide/CP_Check_Point_Smart-1_Cloud_AdminGuide.pdf) (Connecting a Spark Firewall
+   Appliance). The file names the management server address for `fetch certificate`.
+3. Reports the gateway as `registered, token saved for manual onboarding`. This does not count as
+   a failure.
+
+The SIC one-time password is not written to the file. Use the `sic_key` value from
+`config_data.json`. After the appliance is connected, install the policy on it from SmartConsole.
+
+> [!CAUTION]
+> The token file contains a credential. `tokens/` is excluded by `.gitignore`. Delete the file
+> after the appliance is connected.
 
 ### Requirements
 
@@ -209,6 +232,23 @@ scratch.
   - Network access to the appliance local REST API, by default on port `4434`.
   - The REST API enabled on the appliance. It is off by default. Enable it in Gaia Clish with
     `set rest-api mode true`.
+
+### Network Requirements
+
+All connections are outbound. No inbound access and no public IP address are needed, and
+Smart-1 Cloud never connects to the appliance local REST API.
+
+| From | To | Port | Carries |
+|:---|:---|:---:|:---|
+| Machine that runs the deployer | `<instance>.maas.checkpoint.com` (Management API) | 443 | Management API key, gateway settings, SIC one-time password |
+| Machine that runs the deployer | Appliance local REST API (`gateway_ip`, for example a private lab address) | 4434 | Appliance administrator credentials, cloud token, SIC one-time password. Phase 2 and `--delete` only. |
+| Appliance | `<instance>.maas.checkpoint.com` and the regional `cloudinfra-gw` address | 443 | Outbound tunnel to Smart-1 Cloud. Management traffic, SIC and policy installation run inside this tunnel. |
+
+If the appliance or the machine that runs the deployer is behind another firewall, allow this
+outbound HTTPS traffic. The [Smart-1 Cloud Administration Guide](https://sc1.checkpoint.com/documents/Infinity_Portal/WebAdminGuides/EN/Check-Point-SmartCloud-Admin-Guide/CP_Check_Point_Smart-1_Cloud_AdminGuide.pdf) lists the
+addresses for each region (How to Connect a Security Gateway Behind a NAT/Proxy or Third-Party
+Security Gateway). Run phase 2 from a machine on a trusted network that can reach the appliances,
+because the deployer does not verify the appliance certificate.
 
 > [!WARNING]
 > The deployer installs the policy package exactly as it is published. Before you run it, make
@@ -388,8 +428,8 @@ config/
 > Control' or the 'URL Filtering' blades"*.
 
 To have the deployer configure the appliance in phase 2 and reset it with `--delete`, provide all
-three of `gateway_ip`, `gateway_username` and `gateway_password`. See [Workflow](#workflow) for
-gateways without them.
+three of `gateway_ip`, `gateway_username` and `gateway_password`. Without them, the cloud token is
+saved for [Manual Onboarding](#manual-onboarding).
 
 ### `config/policy_package_data.json`
 
@@ -568,6 +608,8 @@ For full details of a run, see `logs/s1c_deploy_sparks_gw.log`.
 > The configuration files contain credentials. They are excluded by `.gitignore`; do not force-add
 > them to version control.
 
+- Token files in `tokens/` contain the cloud token of a gateway. Delete them after the appliance
+  is connected. `--delete` also deletes them.
 - Secrets are masked in the console and the log file. Treat the log file as sensitive anyway,
   because it contains API responses.
 - The local REST API client does not verify the appliance certificate. Run phase 2 only on
@@ -588,6 +630,15 @@ The deployer and this README were checked against these documents:
 | **[R82.20 Release Notes](https://sc1.checkpoint.com/documents/R82.20/WebAdminGuides/EN/CP_R82.20_RN/CP_R82.20_ReleaseNotes.pdf)** | R82.20 | Supported Spark versions, Rugged 1200R |
 
 ## Changelog
+
+### November 2026: Manual onboarding
+
+- Gateways without appliance credentials are registered and configured, and their cloud token and
+  onboarding steps are saved to `tokens/<gw_name>.txt` for manual onboarding. They are not part of
+  the SIC wait and policy installation, and are not reported as failures. `--delete` removes their
+  token file.
+- New Network Requirements section: all connections are outbound, and no public IP address is
+  needed.
 
 ### November 2026: Documented Spark API, Infinity Portal registration removed
 
