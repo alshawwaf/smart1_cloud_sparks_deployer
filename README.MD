@@ -223,7 +223,7 @@ The SIC one-time password is not written to the file. Use the `sic_key` value fr
 
 ### Requirements
 
-- A Check Point Smart-1 Cloud tenant on R82.20 (Management API 2.1).
+- A Check Point Smart-1 Cloud tenant on R82.20 (Management API 2.1 or later).
 - The Management API key of the tenant. In Web SmartConsole, go to **Settings > API &
   SmartConsole** and click **Generate** in the Management API section. Smart-1 Cloud supports only
   one API key.
@@ -261,14 +261,14 @@ because the deployer does not verify the appliance certificate.
 The deployer reads the Management API version at each login and shows it in the console:
 
 ```text
-INFO - Connected to Management API version 2.1
+INFO - Connected to Management API version 2.2
 ```
 
 ### Smart-1 Cloud Management
 
 | Smart-1 Cloud | Management API | Status | Notes |
 |:---:|:---:|:---:|:---|
-| **R82.20** | `2.1` | ![supported](https://img.shields.io/badge/-supported-2EA44F?style=flat-square) | Gateways are created with `add-simple-gateway` and `trust-method: cloud_token`. SIC uses a one-time password with `trust-settings.initiation-phase` set to `when_gateway_connects`. |
+| **R82.20** | `2.1`, `2.2` | ![supported](https://img.shields.io/badge/-supported-2EA44F?style=flat-square) | Gateways are created with `add-simple-gateway` and `trust-method: cloud_token`. SIC uses a one-time password with `trust-settings.initiation-phase` set to `when_gateway_connects`. |
 | **Earlier versions** | earlier than `2.1` | ![not supported](https://img.shields.io/badge/-not_supported-CF222E?style=flat-square) | Management API versions earlier than 2.1 cannot issue cloud tokens. Registration fails with `Management API ... cannot issue cloud tokens`. |
 
 > [!IMPORTANT]
@@ -330,7 +330,7 @@ The current version was tested end to end against:
 
 | Component | Version |
 |:---|:---|
-| **Smart-1 Cloud** | Management API `2.1` (R82.20) |
+| **Smart-1 Cloud** | R82.20, Management API `2.1` and `2.2` |
 | **Quantum Spark** | VNF appliance `R81.10.17`, Build 521 |
 | **Registration** | Management API (cloud token) |
 
@@ -479,7 +479,7 @@ Expand an entry for its cause and resolution.
 
 **Cause:** Earlier versions of the deployer set the one-time password before the object was a Spark gateway
 
-**Resolution:** Update to the current version and confirm that the log shows `Management API version 2.1`.
+**Resolution:** Update to the current version and confirm that the log shows `Management API version 2.1` or later.
 
 </details>
 
@@ -498,6 +498,15 @@ Expand an entry for its cause and resolution.
 **Cause:** The appliance did not connect to Smart-1 Cloud within `sic_timeout`
 
 **Resolution:** Check the appliance connectivity and the phase 2 log entries. If the appliance needs more time, increase `sic_timeout`, or install policy from SmartConsole once the gateway connects.
+
+</details>
+
+<details>
+<summary>SIC test fails with <code>Failed to establish a TCP connection</code>, or <code>set maas mode enable</code> reports <code>MaaS configuration has failed on this gateway</code></summary>
+
+**Cause:** The appliance kept a broken Smart-1 Cloud connection from an earlier attempt, for example after it was connected and disconnected several times. `fw sic_test` on the appliance can still report success.
+
+**Resolution:** Run `--delete`, reboot the appliance (`reboot` in Gaia Clish), confirm that `show maas` reports `disabled` and `show security-management` reports `locally-managed`, then deploy again.
 
 </details>
 
@@ -630,6 +639,15 @@ The deployer and this README were checked against these documents:
 | **[R82.20 Release Notes](https://sc1.checkpoint.com/documents/R82.20/WebAdminGuides/EN/CP_R82.20_RN/CP_R82.20_ReleaseNotes.pdf)** | R82.20 | Supported Spark versions, Rugged 1200R |
 
 ## Changelog
+
+### November 2026: Verified on Management API 2.2
+
+Verified again end to end after the tenant moved to Management API 2.2: automated deployment,
+manual onboarding with the token file, and `--delete`.
+
+- `--delete` logs in to the appliance again when `fw sic_reset` drops the REST API connection,
+  instead of failing the reset.
+- New troubleshooting entry for an appliance that kept a broken Smart-1 Cloud connection.
 
 ### November 2026: Manual onboarding
 
