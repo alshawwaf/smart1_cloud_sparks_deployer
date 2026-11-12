@@ -10,6 +10,7 @@ import argparse, os, sys, time, json
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+import requests
 from utils.logger_main import log, redact
 from utils.load_config_file import read_config_file, AuthConfig, GatewayConfig, PolicyPackage
 from utils.smart1_cloud_mgmt_api import ManagementAPI
@@ -351,11 +352,18 @@ def reset_sparks_gateway(gateway: GatewayConfig) -> None:
     )
     sparks_gw.login()
     log.info(f"Resetting appliance {gateway.gw_name} to local management")
+    sparks_gw.execute_clish(["set maas mode disable"], delay=5)
+    # 'fw sic_reset' restarts the firewall and loads the initial policy, which can drop
+    # the REST API connection before the command returns. Log in again and continue.
+    try:
+        sparks_gw.execute_clish(["fw sic_reset"], delay=5)
+    except requests.exceptions.RequestException:
+        log.warning("Connection to the appliance dropped during 'fw sic_reset', logging in again")
+        time.sleep(30)
+        sparks_gw.login()
     # The local management mode must be set after 'fw sic_reset', which otherwise
     # switches the appliance back to central management (verified on R81.10.17)
     outputs = sparks_gw.execute_clish([
-        "set maas mode disable",
-        "fw sic_reset",
         "set security-management mode locally-managed",
         "show security-management"
     ], delay=5)
