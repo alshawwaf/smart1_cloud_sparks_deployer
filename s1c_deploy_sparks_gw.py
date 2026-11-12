@@ -6,16 +6,20 @@ Smart-1 Cloud Gateway Deployment Orchestrator
 see the readme file for more details
 """
 
-import argparse, os, sys, time, json
+import argparse
+import json
+import os
+import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 import requests
+import urllib3
 from utils.logger_main import log, redact
 from utils.load_config_file import read_config_file, AuthConfig, GatewayConfig, PolicyPackage
 from utils.smart1_cloud_mgmt_api import ManagementAPI
 from utils.sparks_rest_api import SparksGatewayAPI
-import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Cloud tokens of gateways without appliance credentials, for manual onboarding

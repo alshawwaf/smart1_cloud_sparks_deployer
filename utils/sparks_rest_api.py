@@ -6,10 +6,10 @@ Handles direct device configuration via local REST API
 import re
 import time
 import base64
-import requests
 from typing import Iterable, List, Optional
-from .logger_main import log, redact
+import requests
 import urllib3
+from .logger_main import log, redact
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 DEFAULT_TIMEOUT = 60  # seconds for each HTTP request

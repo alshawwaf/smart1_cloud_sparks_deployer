@@ -1,3 +1,4 @@
+"""Logging for the deployer: rotating log file, console output and secret redaction"""
 import logging
 from pathlib import Path
 from typing import Iterable, Optional
@@ -7,11 +8,11 @@ def configure_logging() -> logging.Logger:
     """Configure logging system with file rotation and console output"""
     log_dir = Path("logs")
     log_file = log_dir / "s1c_deploy_sparks_gw.log"
-    
+
     try:
         log_dir.mkdir(parents=True, exist_ok=True)
     except PermissionError as e:
-        raise RuntimeError(f"Unable to create logs directory: {str(e)}")
+        raise RuntimeError(f"Unable to create logs directory: {str(e)}") from e
 
     logger = logging.getLogger("Smart1CloudDeployer")
     logger.setLevel(logging.DEBUG)

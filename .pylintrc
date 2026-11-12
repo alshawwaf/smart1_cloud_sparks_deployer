@@ -1,0 +1,18 @@
+[MAIN]
+py-version = 3.9
+
+[FORMAT]
+max-line-length = 120
+
+[DESIGN]
+# The orchestrator walks each gateway through three phases in one function
+max-locals = 25
+max-branches = 20
+max-statements = 80
+
+[MESSAGES CONTROL]
+disable =
+    # f-strings are the logging style of this project
+    logging-fstring-interpolation,
+    # A failure of one gateway is logged and the run continues with the next one
+    broad-exception-caught

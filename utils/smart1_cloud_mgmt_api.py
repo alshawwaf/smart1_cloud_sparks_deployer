@@ -22,12 +22,12 @@ Spark gateways are created as documented in the Smart-1 Cloud Administration Gui
 These parameters require Management API 2.1 (Smart-1 Cloud R82.20).
 """
 
-from typing import Dict, Optional, List
-import requests
 import json
 import time
-from .logger_main import log
+from typing import Dict, Optional, List
+import requests
 from tqdm import tqdm
+from .logger_main import log
 
 # Management API version that introduced cloud tokens and 'trust-settings' (R82.20)
 REQUIRED_API_VERSION = (2, 1)
@@ -324,7 +324,7 @@ class ManagementAPI:
                     if status in ("FAILED", "PARTIALLY SUCCEEDED"):
                         pbar.set_description(status)
                         pbar.close()
-                        raise Exception(f"Task {status.lower()}: {task_data}")
+                        raise RuntimeError(f"Task {status.lower()}: {task_data}")
                     if time.time() > deadline:
                         pbar.close()
                         raise TimeoutError(f"Task {task_id} did not complete within {timeout}s")
