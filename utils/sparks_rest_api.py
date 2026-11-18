@@ -6,7 +6,8 @@ Handles direct device configuration via local REST API
 import re
 import time
 import base64
-from typing import Iterable, List, Optional
+import ipaddress
+from typing import Dict, Iterable, List, Optional
 import requests
 import urllib3
 from .logger_main import log, redact
@@ -101,3 +102,54 @@ class SparksGatewayAPI:
         except Exception as e:
             log.error(f"CLISH command failed: {redact(str(e), secrets)}")
             raise
+
+    def get_interfaces(self) -> List[Dict]:
+        """
+        Return the interfaces of the appliance that have an IPv4 address, for the topology of
+        the gateway object: [{"name", "ipv4-address", "ipv4-mask-length", "external"}].
+
+        Internet connections are external and are named after their interface (for example
+        WAN), not after the connection (Internet1). All other interfaces are internal.
+        """
+        outputs = self.execute_clish(
+            ["show interfaces table", "show internet-connections table"], delay=1)
+        local, internet = outputs[0], outputs[1]
+        connections = parse_clish_table(internet)
+        interfaces: List[Dict] = []
+        for row in connections:
+            add_interface(interfaces, row.get('interface'), row, external=True)
+        connection_names = {row.get('name') for row in connections}
+        for row in parse_clish_table(local):
+            if row.get('name') not in connection_names:
+                add_interface(interfaces, row.get('name'), row, external=False)
+        return interfaces
+
+
+def parse_clish_table(output: str) -> List[Dict[str, str]]:
+    """Parse a Gaia Embedded 'show ... table' output. Cells are read by the header positions."""
+    lines = [line for line in output.splitlines() if line.strip()]
+    header = next((i for i, line in enumerate(lines) if line.lower().startswith("name")), None)
+    if header is None:
+        return []
+    columns = [(match.group(), match.start()) for match in re.finditer(r"\S+", lines[header])]
+    rows = []
+    for line in lines[header + 1:]:
+        row = {}
+        for index, (name, start) in enumerate(columns):
+            end = columns[index + 1][1] if index + 1 < len(columns) else len(line)
+            row[name] = line[start:end].strip()
+        rows.append(row)
+    return rows
+
+
+def add_interface(interfaces: List[Dict], name: Optional[str], row: Dict[str, str], external: bool) -> None:
+    """Add an interface that has a valid IPv4 address and mask. Others are skipped."""
+    try:
+        address = str(ipaddress.IPv4Address(row.get('ipv4-address', '')))
+        mask_length = int(row.get('mask-length', ''))
+    except ValueError:
+        return  # unassigned interface, or no address yet
+    if not name or not 0 < mask_length <= 32 or any(i['name'] == name for i in interfaces):
+        return
+    interfaces.append({"name": name, "ipv4-address": address,
+                       "ipv4-mask-length": mask_length, "external": external})

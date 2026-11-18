@@ -223,6 +223,51 @@ class ManagementAPI:
         finally:
             self._logout()
 
+    def set_topology(self, gw_name: str, interfaces: List[Dict]) -> None:
+        """
+        Set the interfaces of the gateway object and their topology, then publish.
+
+        Spark objects are created with 'global and automatic' topology and an empty interface
+        list. get-interfaces does not work for Spark gateways ("Failed to get interfaces"), so
+        the interfaces are read from the appliance and set here in 'per interface' mode.
+        The first Threat Prevention installation on the gateway empties the list again, so
+        the caller sets it once more after that installation.
+        Internal interfaces get the network of their own IP address and mask, the only choice
+        the API accepts for Spark gateways. Anti-Spoofing uses the default action, Prevent.
+        """
+        payload = []
+        for interface in interfaces:
+            item = {
+                "name": interface["name"],
+                "ipv4-address": interface["ipv4-address"],
+                "ipv4-mask-length": interface["ipv4-mask-length"],
+                "topology": "external" if interface["external"] else "internal",
+                "anti-spoofing": True
+            }
+            if not interface["external"]:
+                item["topology-settings"] = {
+                    "ip-address-behind-this-interface": "network defined by the interface ip and net mask",
+                    "interface-leads-to-dmz": interface["name"].upper() == "DMZ"
+                }
+            payload.append(item)
+        try:
+            self._login()
+            self._execute_api_call(
+                "set-simple-gateway",
+                {
+                    "name": gw_name,
+                    "interfaces-topology-settings": "per interface",
+                    "interfaces": payload
+                }
+            )
+            self._publish()
+            summary = ", ".join(
+                f"{i['name']} {i['ipv4-address']}/{i['ipv4-mask-length']} "
+                f"({'external' if i['external'] else 'internal'})" for i in interfaces)
+            log.info(f"Topology of {gw_name}: {summary}")
+        finally:
+            self._logout()
+
     def delete_gateway(self, gw_name: str) -> bool:
         """Delete a gateway object and publish. Returns False if the object does not exist."""
         try:
@@ -324,10 +369,19 @@ class ManagementAPI:
                 ncols=80
             ) as pbar:
                 while True:
-                    task_status = self._execute_api_call(
-                        "show-task",
-                        {"task-id": task_id}
-                    )
+                    try:
+                        task_status = self._execute_api_call(
+                            "show-task",
+                            {"task-id": task_id}
+                        )
+                    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+                        # A busy management server can miss one status request. The task
+                        # itself keeps running, so ask again until the task limit.
+                        if time.time() > deadline:
+                            raise
+                        log.warning(f"No answer to the task status request, asking again: {str(e)}")
+                        time.sleep(interval)
+                        continue
 
                     task_data = task_status.get('tasks', [{}])[0]
                     status = task_data.get('status', 'unknown').upper()

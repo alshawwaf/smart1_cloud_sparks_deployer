@@ -29,6 +29,7 @@ APPLIANCE_FAILED = "failed: appliance configuration, token saved for manual onbo
 THREAT_PREVENTION_FAILED = ("failed: Threat Prevention policy installation "
                             "(Access Control policy is installed)")
 THREAT_PREVENTION_RETRY = 60  # seconds before the second Threat Prevention attempt
+TOPOLOGY_SETTLE = 20  # seconds between the Threat Prevention installation and the topology
 RELOGIN_ATTEMPTS = 5  # appliance logins to try after 'fw sic_reset' drops the connection
 # Shown at the start of every run, to tell which version of the deployer produced a log
 __version__ = "2026.11.17"
@@ -177,9 +178,10 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
         if gw_name not in ready_gateways:
             results[gw_name] = "failed: SIC not established"
 
+    set_topologies(mgmt_api, config_data, ready_gateways)
+
     if ready_gateways:
         try:
-            log.info(f"Installing policy package '{policy_config.policy_package}'")
             # Access Control first. A newly connected gateway rejects the Threat Prevention
             # policy when both are sent in one request (verified on R81.10.17).
             mgmt_api.install_policy(
@@ -201,7 +203,7 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
                                       if gw.gw_name in ready_gateways and gw.has_threat_prevention()]
         if threat_prevention_gateways:
             install_threat_prevention(mgmt_api, threat_prevention_gateways,
-                                      policy_config.policy_package, results)
+                                      policy_config.policy_package, results, config_data)
     else:
         log.error("No gateway established SIC, skipping policy installation")
 
@@ -210,8 +212,11 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
 
 
 def install_threat_prevention(mgmt_api: ManagementAPI, gw_names: List[str], policy_package: str,
-                              results: Dict[str, str]) -> None:
-    """Install the Threat Prevention policy, with one retry, and record a failure in results"""
+                              results: Dict[str, str], gateways: List[GatewayConfig]) -> None:
+    """
+    Install the Threat Prevention policy, with one retry, and record a failure in results.
+    After a successful installation the topology of the gateways is set again.
+    """
     for attempt in (1, 2):
         try:
             mgmt_api.install_policy(
@@ -219,6 +224,7 @@ def install_threat_prevention(mgmt_api: ManagementAPI, gw_names: List[str], poli
                 policy_package=policy_package,
                 access=False, threat_prevention=True
             )
+            restore_topologies(mgmt_api, gateways, gw_names, policy_package)
             return
         except Exception as e:
             log.error(f"Threat Prevention policy installation failed (attempt {attempt} of 2): {str(e)}")
@@ -373,8 +379,51 @@ def configure_gateway(mgmt_api: ManagementAPI, gateway: GatewayConfig) -> None:
         raise
 
 
+def set_topologies(mgmt_api: ManagementAPI, gateways: List[GatewayConfig], ready_gateways: List[str]) -> None:
+    """
+    Set the interfaces read from each appliance on its gateway object, for the gateways that
+    established SIC. A failure is not fatal and the deployment continues.
+    """
+    for gateway in gateways:
+        if gateway.gw_name not in ready_gateways:
+            continue
+        if not gateway.interfaces:
+            log.warning(f"No interfaces were read from {gateway.gw_name}. The object keeps its "
+                        "automatic topology. Set the interfaces in SmartConsole.")
+            continue
+        try:
+            mgmt_api.set_topology(gateway.gw_name, gateway.interfaces)
+        except Exception as e:
+            log.warning(f"Could not set the topology of {gateway.gw_name}: {str(e)}. The object "
+                        "keeps its automatic topology. Set the interfaces in SmartConsole.")
+
+
+def restore_topologies(mgmt_api: ManagementAPI, gateways: List[GatewayConfig], gw_names: List[str],
+                       policy_package: str) -> None:
+    """
+    Set the interfaces again after the first Threat Prevention installation, and install the
+    Access Control policy again so that the gateway enforces them. The first Threat Prevention
+    installation on a Spark gateway empties the interface list of its object and leaves it in
+    'per interface' mode (verified on R81.10.17 with Smart-1 Cloud R82.20). Later
+    installations keep the list.
+    """
+    targets = [gw.gw_name for gw in gateways if gw.gw_name in gw_names and gw.interfaces]
+    if not targets:
+        return
+    log.info(f"Setting the topology again in {TOPOLOGY_SETTLE}s: the first Threat Prevention "
+             "installation empties the interface list of the gateway object")
+    time.sleep(TOPOLOGY_SETTLE)
+    set_topologies(mgmt_api, gateways, targets)
+    try:
+        mgmt_api.install_policy(policy_targets=targets, policy_package=policy_package,
+                                access=True, threat_prevention=False)
+    except Exception as e:
+        log.warning(f"Could not install the Access Control policy again on {', '.join(targets)}: "
+                    f"{str(e)}. Install it from SmartConsole to enforce the topology.")
+
+
 def configure_sparks_gateway(gateway: GatewayConfig, mgmt_ip: str) -> None:
-    """Configure physical gateway using dedicated API client"""
+    """Configure physical gateway using dedicated API client and read its interfaces"""
     if not gateway.has_appliance_credentials():
         log.info("Skipping physical config - incomplete credentials")
         return
@@ -389,6 +438,12 @@ def configure_sparks_gateway(gateway: GatewayConfig, mgmt_ip: str) -> None:
         )
 
         sparks_gw.login()
+
+        # The interfaces are read before the appliance is connected, for the object topology
+        try:
+            gateway.interfaces = sparks_gw.get_interfaces()
+        except Exception as e:
+            log.warning(f"Could not read the interfaces of {gateway.gw_name}: {redact(str(e), secrets)}")
 
         # Execute physical configuration commands (Spark CLI Reference Guide). The appliance
         # joins Smart-1 Cloud with the cloud token and pulls its SIC certificate from the

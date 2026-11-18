@@ -28,6 +28,8 @@ class GatewayConfig(BaseModel):
     application_control: bool = False
     url_filtering: bool = False
     maas_token: Optional[str] = None
+    # Read from the appliance during deployment, for the topology of the gateway object
+    interfaces: List[Dict[str, Any]] = []
 
     # v2 configuration syntax
     model_config = ConfigDict(frozen=False)
