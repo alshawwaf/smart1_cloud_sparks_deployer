@@ -4,7 +4,7 @@ Automated onboarding of Check Point Quantum Spark gateways to Smart-1 Cloud.
 
 ![Smart-1 Cloud R82.20](https://img.shields.io/badge/Smart--1_Cloud-R82.20-555555)
 ![Spark firmware R81.10.X and R82.00.X](https://img.shields.io/badge/Spark-R81.10.X_%7C_R82.00.X-555555)
-![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-555555)
+![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-555555)
 
 [Overview](#overview) · [Quick Start](#quick-start) · [Configuration](#configuration) · [Documentation](#documentation)
 
@@ -137,7 +137,7 @@ The SIC one-time password is not written to the file. Use the `sic_key` value fr
 - The Management API key of the tenant. In Web SmartConsole, go to **Settings > API &
   SmartConsole** and click **Generate** in the Management API section. Smart-1 Cloud supports only
   one API key.
-- Python 3.9 or later on Windows or Linux.
+- Python 3.10 or later on Windows or Linux.
 - To configure the appliances (phase 2) and reset them with `--delete`:
   - Network access to the appliance local REST API, by default on port `4434`.
   - The REST API enabled on the appliance. It is off by default. Enable it in Gaia Clish with
