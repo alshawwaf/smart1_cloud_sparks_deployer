@@ -88,9 +88,9 @@ Expand an entry for its cause and resolution.
 <details>
 <summary>The gateway object has only the Firewall blade</summary>
 
-**Cause:** Blades are enabled only when their keys are set for the gateway
+**Cause:** Blades are enabled only when their keys are set for the gateway, with or without appliance credentials. Updating the deployer with `git pull` does not add the keys to your own `config_data.json`. The console shows `Blades: firewall` and a warning for such a gateway, and a warning for each key it does not know.
 
-**Resolution:** Set `vpn`, `ips`, `anti_bot`, `anti_virus`, `application_control` and `url_filtering` to `true` as needed in `config_data.json`. See [Configuration](../README.MD#configconfig_datajson).
+**Resolution:** Set `vpn`, `ips`, `anti_bot`, `anti_virus`, `application_control` and `url_filtering` to `true` as needed in `config_data.json`, then run `--delete` and deploy again, or enable the blades on the existing object in SmartConsole. See [Configuration](../README.MD#configconfig_datajson).
 
 </details>
 

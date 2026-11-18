@@ -373,6 +373,11 @@ def configure_gateway(mgmt_api: ManagementAPI, gateway: GatewayConfig) -> None:
         enabled = [blade for blade, state in gateway.blades().items() if state]
         log.info(f"Configured {gateway.gw_name} successfully. Blades: "
                  f"{', '.join(['firewall'] + enabled)}")
+        if not enabled:
+            log.warning(f"No blade key is set to true for {gateway.gw_name} in config/config_data.json, "
+                        "so only the Firewall blade is enabled. To enable more, add keys such as "
+                        '"ips": true to the gateway (see config/config_data.example.json), '
+                        "then run --delete and deploy again")
 
     except Exception as e:
         log.error(f"Configuration failed for {gateway.gw_name}: {redact(str(e), [gateway.sic_key])}")

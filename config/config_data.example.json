@@ -20,6 +20,9 @@
         "version": "R82",
         "hardware": "1800",
         "net_type": "Wired",
-        "sic_key": "your-sic-key"
+        "sic_key": "your-sic-key",
+        "ips": true,
+        "anti_bot": true,
+        "anti_virus": true
     }
 ]

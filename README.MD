@@ -235,7 +235,10 @@ config/
         "version": "R82",
         "hardware": "1800",
         "net_type": "Wired",
-        "sic_key": "your-sic-key"
+        "sic_key": "your-sic-key",
+        "ips": true,
+        "anti_bot": true,
+        "anti_virus": true
     }
 ]
 ```
@@ -258,9 +261,13 @@ config/
 | `url_filtering` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Enable the URL Filtering blade. Default `false`. |
 
 The Firewall blade is always enabled. Every other blade is off unless its key is set to `true`
-for that gateway, so a gateway without blade keys is created with the Firewall blade only. In the
-example above, `sparks1` gets all six blades and `sparks2` gets the Firewall blade only. The
-console shows the result for each gateway:
+for that gateway, so a gateway without blade keys is created with the Firewall blade only. Blade
+keys work the same with and without appliance credentials. In the example above, `sparks1` gets
+all six blades and `sparks2`, which has no appliance credentials, gets IPS, Anti-Bot and
+Anti-Virus. Your own `config_data.json` is not changed by `git pull`, so add the blade keys to it
+yourself. Keys are accepted in any case and with hyphens, for example `Anti-Bot`. The console
+shows the result for each gateway, and warns about a gateway without blades and about keys it
+does not know:
 
 ```text
 INFO - Configured sparks1 successfully. Blades: firewall, vpn, ips, anti-bot, anti-virus, application-control, url-filtering

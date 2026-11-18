@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ValidationError, ConfigDict
+from .logger_main import log
 
 class AuthConfig(BaseModel):
     """Smart-1 Cloud tenant and Management API key (auth_data.json)"""
@@ -58,6 +59,8 @@ class GatewayConfig(BaseModel):
         return (any([self.gateway_ip, self.gateway_username, self.gateway_password])
                 and not self.has_appliance_credentials())
 
+BLADE_KEYS = ("vpn", "ips", "anti_bot", "anti_virus", "application_control", "url_filtering")
+
 class PolicyPackage(BaseModel):
     """Policy package and SIC wait (policy_package_data.json)"""
     policy_package: str
@@ -106,9 +109,24 @@ def validate_auth_config(config: Dict) -> AuthConfig:
 def validate_gateway_config(config: List[Dict]) -> List[GatewayConfig]:
     """Validation wrapper for gateway data"""
     try:
-        return [GatewayConfig(**item) for item in config]
+        return [GatewayConfig(**normalize_gateway_keys(item)) for item in config]
     except ValidationError as e:
         raise ValueError(f"Invalid gateway configuration: {str(e)}") from e
+
+def normalize_gateway_keys(item: Dict) -> Dict:
+    """
+    Accept gateway keys in any case and with hyphens or spaces, for example "Anti-Bot" for
+    anti_bot. Keys that are still unknown would be ignored without a trace, so they are reported.
+    """
+    normalized = {}
+    for key, value in item.items():
+        name = key.strip().lower().replace("-", "_").replace(" ", "_")
+        if name in GatewayConfig.__annotations__:
+            normalized[name] = value
+        else:
+            log.warning(f"{item.get('gw_name', 'gateway')}: unknown key '{key}' in config_data.json "
+                        f"is ignored. Blade keys: {', '.join(BLADE_KEYS)}")
+    return normalized
 
 def validate_policy_package_config(config: Dict) -> PolicyPackage:
     """Validation wrapper for policy package data"""

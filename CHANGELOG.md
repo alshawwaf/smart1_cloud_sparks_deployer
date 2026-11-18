@@ -2,6 +2,15 @@
 
 [Back to the README](README.MD)
 
+## November 2026: Blade keys are checked
+
+- A gateway without a blade key set to `true` now gets a warning that only the Firewall blade
+  is enabled, with the keys to add.
+- Gateway keys are accepted in any case and with hyphens or spaces, for example `Anti-Bot`. A key
+  the deployer does not know is reported instead of being ignored without a trace.
+- The example gateway without appliance credentials now has blade keys, to show that blades do
+  not depend on the credentials.
+
 ## November 2026: Interfaces and topology on the gateway object
 
 - The gateway object now gets its interfaces: the deployer reads them from the appliance and sets
