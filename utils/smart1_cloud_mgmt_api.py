@@ -180,7 +180,7 @@ class ManagementAPI:
                 if "doesn't match specified platform" in e.response.text:
                     raise ValueError(
                         f"{hardware} with version {version} does not accept net_type '{hardware_subtype}'. "
-                        "See 'net_type values by model' in the README."
+                        "See 'net_type values by model' in docs/COMPATIBILITY.md."
                     ) from e
                 raise
             trust_details = gateway.get('trust-details') or {}
