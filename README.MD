@@ -359,11 +359,18 @@ The current version was tested end to end against:
 | **Smart-1 Cloud** | R82.20, Management API `2.1` and `2.2` |
 | **Quantum Spark** | VNF appliance `R81.10.17`, Build 521 |
 | **Registration** | Management API (cloud token) |
+| **Blades** | Firewall, IPsec VPN, IPS, Anti-Bot, Anti-Virus, Application Control, URL Filtering |
+| **Last tested** | 17 November 2026, deployer version `2026.11.17` |
 
 | Status | Test | Result |
 |:---:|:---|:---|
 | ![pass](https://img.shields.io/badge/-pass-2EA44F?style=flat-square) | **Deployment** | Gateway registered, appliance connected, SIC communicating, policy installed, appliance still reachable on SSH and its web UI |
+| ![pass](https://img.shields.io/badge/-pass-2EA44F?style=flat-square) | **Blades and policy** | All six optional blades enabled on the object. Access Control policy installed, then Threat Prevention policy installed in a second request, without a retry |
+| ![pass](https://img.shields.io/badge/-pass-2EA44F?style=flat-square) | **Manual onboarding** | Gateway without appliance credentials registered, token file saved, no SIC wait |
 | ![pass](https://img.shields.io/badge/-pass-2EA44F?style=flat-square) | **Removal**<br>`--delete` | Appliance back to local management with SIC reset, gateway object deleted |
+
+Not tested on an appliance: the *REST API is off* message (the lab appliance has the REST API
+enabled), and the login retry in `--delete` (the connection did not drop long enough to need it).
 
 ## Configuration
 
@@ -521,6 +528,10 @@ console and in the log file.
 - Every HTTP request has a 60-second timeout, and publish and policy installation tasks have a
   30-minute limit, so a stalled connection cannot stop the run indefinitely.
 - Each phase opens and closes its own Management API session.
+- The Access Control policy and the Threat Prevention policy are installed in separate requests,
+  and a failed Threat Prevention installation is repeated once.
+- A gateway whose appliance cannot be configured keeps its object and gets a token file, and the
+  run does not wait for SIC with it.
 
 ## Troubleshooting
 
