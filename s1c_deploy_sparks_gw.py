@@ -25,11 +25,19 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # Cloud tokens of gateways without appliance credentials, for manual onboarding
 TOKEN_DIR = Path("tokens")
 MANUAL_ONBOARDING = "registered, token saved for manual onboarding"
+APPLIANCE_FAILED = "failed: appliance configuration, token saved for manual onboarding"
+THREAT_PREVENTION_FAILED = ("failed: Threat Prevention policy installation "
+                            "(Access Control policy is installed)")
+THREAT_PREVENTION_RETRY = 60  # seconds before the second Threat Prevention attempt
+RELOGIN_ATTEMPTS = 5  # appliance logins to try after 'fw sic_reset' drops the connection
+# Shown at the start of every run, to tell which version of the deployer produced a log
+__version__ = "2026.11.17"
 
 
 def deploy_s1c_sparks_gw(delete: bool = False) -> None:
     """Main deployment workflow executor"""
     try:
+        log.info(f"Smart-1 Cloud Spark Gateway Deployer version {__version__}")
         # Load configurations
         auth_config: AuthConfig = read_config_file('./config/auth_data.json')
         config_data: List[GatewayConfig] = read_config_file('./config/config_data.json')
@@ -65,6 +73,20 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
     results: Dict[str, str] = {gateway.gw_name: "not started" for gateway in config_data}
     configured_gateways = []
     pending_physical_config = []
+    token_expirations: Dict[str, Optional[str]] = {}
+
+    # Say up front which gateways the deployer connects itself and which are left for
+    # manual onboarding, so a run never waits for SIC unexpectedly
+    automatic = [gw.gw_name for gw in config_data if gw.has_appliance_credentials()]
+    manual = [gw.gw_name for gw in config_data if not gw.has_appliance_credentials()]
+    log.info(f"{len(automatic)} gateways with appliance credentials, connected by the deployer: "
+             f"{', '.join(automatic) or 'none'}")
+    log.info(f"{len(manual)} gateways without appliance credentials, for manual onboarding: "
+             f"{', '.join(manual) or 'none'}")
+    for gateway in config_data:
+        if gateway.has_partial_appliance_credentials():
+            log.warning(f"{gateway.gw_name}: gateway_ip, gateway_username and gateway_password "
+                        "are not all set, so the appliance is left for manual onboarding")
 
     # The values the tenant accepts for Spark gateways, and the management server address
     # that the appliances fetch their certificate from
@@ -81,6 +103,7 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
             # 1. Cloud Registration
             registration = mgmt_api.register_gateway(gateway.gw_name, hardware, hardware_subtype, version)
             gateway.maas_token = registration['token']
+            token_expirations[gateway.gw_name] = registration.get('token_expiration')
             log.debug("Cloud registration response: %s",
                       redact(json.dumps(registration, indent=2), [gateway.maas_token]))
 
@@ -88,7 +111,7 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
             log.info("Configuring Gateway Object settings")
             configure_gateway(mgmt_api, gateway)
 
-            if all([gateway.gateway_ip, gateway.gateway_username, gateway.gateway_password]):
+            if gateway.has_appliance_credentials():
                 # Track gateways needing physical config
                 configured_gateways.append(gateway.gw_name)
                 results[gateway.gw_name] = "configured, waiting for SIC"
@@ -132,7 +155,20 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
         except Exception as e:
             log.error(f"Spark gateway configuration failed for {gateway.gw_name}: "
                       f"{redact(str(e), [gateway.maas_token, gateway.sic_key, gateway.gateway_password])}")
+            # The gateway object and its cloud token are still valid. Save them, so the
+            # appliance can be connected manually, and do not wait for SIC with this gateway.
+            configured_gateways.remove(gateway.gw_name)
+            token_file = save_onboarding_file(gateway, token_expirations.get(gateway.gw_name), mgmt_ip)
+            results[gateway.gw_name] = APPLIANCE_FAILED
+            log.error(f"{gateway.gw_name} is registered in Smart-1 Cloud but the appliance was not "
+                      f"connected. Fix the cause and run again after --delete, or connect it "
+                      f"manually with the steps in {token_file.as_posix()}")
             continue
+
+    if not configured_gateways:
+        log.error("No appliance was connected, skipping the SIC wait and policy installation")
+        log_summary(results)
+        return False
 
     # Phase 3: Policy Installation, only on gateways that established SIC
     log.info(f"Waiting up to {policy_config.sic_timeout}s for gateways to establish SIC")
@@ -144,9 +180,12 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
     if ready_gateways:
         try:
             log.info(f"Installing policy package '{policy_config.policy_package}'")
+            # Access Control first. A newly connected gateway rejects the Threat Prevention
+            # policy when both are sent in one request (verified on R81.10.17).
             mgmt_api.install_policy(
                 policy_targets=ready_gateways,
-                policy_package=policy_config.policy_package
+                policy_package=policy_config.policy_package,
+                access=True, threat_prevention=False
             )
             for gw_name in ready_gateways:
                 results[gw_name] = "deployed"
@@ -155,11 +194,39 @@ def process_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig], 
             log.error(f"Policy installation failed: {str(e)}")
             for gw_name in ready_gateways:
                 results[gw_name] = "failed: policy installation"
+            ready_gateways = []
+
+        # Threat Prevention second, only on gateways with IPS, Anti-Bot or Anti-Virus enabled
+        threat_prevention_gateways = [gw.gw_name for gw in config_data
+                                      if gw.gw_name in ready_gateways and gw.has_threat_prevention()]
+        if threat_prevention_gateways:
+            install_threat_prevention(mgmt_api, threat_prevention_gateways,
+                                      policy_config.policy_package, results)
     else:
         log.error("No gateway established SIC, skipping policy installation")
 
     log_summary(results)
     return all(state in ("deployed", MANUAL_ONBOARDING) for state in results.values())
+
+
+def install_threat_prevention(mgmt_api: ManagementAPI, gw_names: List[str], policy_package: str,
+                              results: Dict[str, str]) -> None:
+    """Install the Threat Prevention policy, with one retry, and record a failure in results"""
+    for attempt in (1, 2):
+        try:
+            mgmt_api.install_policy(
+                policy_targets=gw_names,
+                policy_package=policy_package,
+                access=False, threat_prevention=True
+            )
+            return
+        except Exception as e:
+            log.error(f"Threat Prevention policy installation failed (attempt {attempt} of 2): {str(e)}")
+            if attempt == 1:
+                log.info(f"Retrying in {THREAT_PREVENTION_RETRY}s")
+                time.sleep(THREAT_PREVENTION_RETRY)
+    for gw_name in gw_names:
+        results[gw_name] = THREAT_PREVENTION_FAILED
 
 
 def save_onboarding_file(gateway: GatewayConfig, token_expiration: Optional[str], mgmt_ip: str) -> Path:
@@ -219,7 +286,7 @@ def remove_gateways(auth_config: AuthConfig, config_data: List[GatewayConfig]) -
     for gateway in config_data:
         log.info(f"Removing {gateway.gw_name}")
         appliance_ok = True
-        if all([gateway.gateway_ip, gateway.gateway_username, gateway.gateway_password]):
+        if gateway.has_appliance_credentials():
             try:
                 reset_sparks_gateway(gateway)
             except Exception as e:
@@ -295,11 +362,11 @@ def configure_gateway(mgmt_api: ManagementAPI, gateway: GatewayConfig) -> None:
         mgmt_api.configure_gateway(
             gw_name=gateway.gw_name,
             sic_key=gateway.sic_key,
-            application_control=gateway.application_control,
-            url_filtering=gateway.url_filtering
+            blades=gateway.blades()
         )
-        log.info(f"Configured {gateway.gw_name} successfully")
-
+        enabled = [blade for blade, state in gateway.blades().items() if state]
+        log.info(f"Configured {gateway.gw_name} successfully. Blades: "
+                 f"{', '.join(['firewall'] + enabled)}")
 
     except Exception as e:
         log.error(f"Configuration failed for {gateway.gw_name}: {redact(str(e), [gateway.sic_key])}")
@@ -308,7 +375,7 @@ def configure_gateway(mgmt_api: ManagementAPI, gateway: GatewayConfig) -> None:
 
 def configure_sparks_gateway(gateway: GatewayConfig, mgmt_ip: str) -> None:
     """Configure physical gateway using dedicated API client"""
-    if not all([gateway.gateway_ip, gateway.gateway_username, gateway.gateway_password]):
+    if not gateway.has_appliance_credentials():
         log.info("Skipping physical config - incomplete credentials")
         return
 
@@ -363,8 +430,16 @@ def reset_sparks_gateway(gateway: GatewayConfig) -> None:
         sparks_gw.execute_clish(["fw sic_reset"], delay=5)
     except requests.exceptions.RequestException:
         log.warning("Connection to the appliance dropped during 'fw sic_reset', logging in again")
-        time.sleep(30)
-        sparks_gw.login()
+        # The appliance can take a few minutes to answer again
+        for attempt in range(1, RELOGIN_ATTEMPTS + 1):
+            time.sleep(30)
+            try:
+                sparks_gw.login()
+                break
+            except (RuntimeError, requests.exceptions.RequestException):
+                if attempt == RELOGIN_ATTEMPTS:
+                    raise
+                log.warning(f"Appliance not answering yet (attempt {attempt} of {RELOGIN_ATTEMPTS})")
     # The local management mode must be set after 'fw sic_reset', which otherwise
     # switches the appliance back to central management (verified on R81.10.17)
     outputs = sparks_gw.execute_clish([

@@ -7,7 +7,13 @@
         "sic_key": "your-sic-key",
         "gateway_ip": "203.0.113.171:4434",
         "gateway_username": "admin",
-        "gateway_password": "your-appliance-password"
+        "gateway_password": "your-appliance-password",
+        "vpn": true,
+        "ips": true,
+        "anti_bot": true,
+        "anti_virus": true,
+        "application_control": true,
+        "url_filtering": true
     },
     {
         "gw_name": "sparks2",

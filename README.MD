@@ -22,8 +22,8 @@ the appliance itself.
 | Capability | Description |
 |:---|:---|
 | **Registration** | Registers any number of gateways in Smart-1 Cloud with only a Management API key. |
-| **Object configuration** | Creates the Spark gateway object with the parameters documented in the Smart-1 Cloud Administration Guide, after checking them against the tenant, and sets the SIC trust settings. |
-| **Policy installation** | Waits for each gateway to establish SIC, then installs the policy package: the Access Control policy, and the Threat Prevention policy on gateways where Threat Prevention blades are enabled. |
+| **Object configuration** | Creates the Spark gateway object with the parameters documented in the Smart-1 Cloud Administration Guide, after checking them against the tenant, sets the SIC trust settings and enables the blades configured for the gateway. |
+| **Policy installation** | Waits for each gateway to establish SIC, then installs the policy package: first the Access Control policy, then the Threat Prevention policy on gateways where IPS, Anti-Bot or Anti-Virus is enabled. |
 | **Appliance configuration** | Connects each appliance to Smart-1 Cloud over its local REST API, when its credentials are configured. Otherwise, saves the cloud token and the onboarding steps to a local file for manual onboarding. |
 | **Removal** | Returns the appliances to local management and deletes their gateway objects (`--delete`). |
 | **Validation and logging** | Validates all configuration files before the run and keeps a rotating DEBUG log of every run. |
@@ -42,7 +42,9 @@ the appliance itself.
 
 Policy is installed last, because a gateway accepts policy only after it has connected to
 Smart-1 Cloud and established SIC. Phase 3 waits for each gateway to reach the "communicating"
-SIC state and installs policy only on those gateways.
+SIC state and installs policy only on those gateways. The Access Control policy is installed
+first and the Threat Prevention policy in a second request, because a newly connected gateway
+rejects the Threat Prevention policy when both are sent together.
 
 Phase 2 runs only for gateways whose appliance credentials (`gateway_ip`, `gateway_username`,
 `gateway_password`) are configured. For a gateway without them, the deployer registers and
@@ -50,6 +52,11 @@ configures the object, then saves the cloud token and the onboarding steps to
 `tokens/<gw_name>.txt` (see [Manual Onboarding](#manual-onboarding)). These gateways are not part
 of phases 2 and 3: connect the appliance with the steps in the file, then install the policy from
 SmartConsole.
+
+If phase 2 fails for a gateway, for example because the appliance REST API is off or cannot be
+reached, the deployer saves the same `tokens/<gw_name>.txt` file for it and does not wait for SIC
+with that gateway. The gateway is reported as failed, and the appliance can still be connected
+with the steps in the file.
 
 A gateway that fails at any step is logged and skipped, and the run continues with the remaining
 gateways. The run ends with a summary of each gateway and exits with a non-zero code if any
@@ -414,7 +421,13 @@ config/
         "sic_key": "your-sic-key",
         "gateway_ip": "203.0.113.171:4434",
         "gateway_username": "admin",
-        "gateway_password": "your-appliance-password"
+        "gateway_password": "your-appliance-password",
+        "vpn": true,
+        "ips": true,
+        "anti_bot": true,
+        "anti_virus": true,
+        "application_control": true,
+        "url_filtering": true
     },
     {
         "gw_name": "sparks2",
@@ -436,8 +449,26 @@ config/
 | `gateway_ip` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Address and port of the appliance local REST API, for example `203.0.113.171:4434`. |
 | `gateway_username` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Administrator user name on the appliance. |
 | `gateway_password` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Administrator password on the appliance. |
+| `vpn` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Enable the IPsec VPN blade. Default `false`. |
+| `ips` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Enable the IPS blade. Default `false`. |
+| `anti_bot` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Enable the Anti-Bot blade. Default `false`. |
+| `anti_virus` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Enable the Anti-Virus blade. Default `false`. |
 | `application_control` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Enable the Application Control blade. Default `false`. |
 | `url_filtering` | ![optional](https://img.shields.io/badge/-optional-6E7781?style=flat-square) | Enable the URL Filtering blade. Default `false`. |
+
+The Firewall blade is always enabled. Every other blade is off unless its key is set to `true`
+for that gateway, so a gateway without blade keys is created with the Firewall blade only. In the
+example above, `sparks1` gets all six blades and `sparks2` gets the Firewall blade only. The
+console shows the result for each gateway:
+
+```text
+INFO - Configured sparks1 successfully. Blades: firewall, vpn, ips, anti-bot, anti-virus, application-control, url-filtering
+```
+
+With `vpn` enabled, the Access Control installation reports the warning *"Gateway ... has an
+empty Encryption Domain"* until you define the VPN domain of the gateway in SmartConsole. The
+installation still succeeds. The policy package needs a Threat Prevention policy when `ips`,
+`anti_bot` or `anti_virus` is enabled.
 
 > [!NOTE]
 > In the test tenant, which uses Playblocks, new gateways were added to the `Playblocks_Gateways`
@@ -448,7 +479,9 @@ config/
 
 To have the deployer configure the appliance in phase 2 and reset it with `--delete`, provide all
 three of `gateway_ip`, `gateway_username` and `gateway_password`. Without them, the cloud token is
-saved for [Manual Onboarding](#manual-onboarding).
+saved for [Manual Onboarding](#manual-onboarding). The deployer waits for SIC and installs policy
+only for gateways that have all three, so remove them from every gateway that you onboard
+yourself. At the start of a run, the console lists which gateways are in each group.
 
 ### `config/policy_package_data.json`
 
@@ -539,11 +572,56 @@ Expand an entry for its cause and resolution.
 </details>
 
 <details>
-<summary><code>REST API on this appliance is off</code></summary>
+<summary><code>The REST API on this appliance is off</code></summary>
 
 **Cause:** The appliance local REST API is disabled (default)
 
-**Resolution:** On the appliance, run `set rest-api mode true` in Gaia Clish.
+**Resolution:** On the appliance, run `set rest-api mode true` in Gaia Clish. The gateway object already exists, so either run `--delete` and deploy again, or connect the appliance with the steps in `tokens/<gw_name>.txt`.
+
+</details>
+
+<details>
+<summary><code>Cannot reach the appliance REST API at ...</code></summary>
+
+**Cause:** The machine that runs the deployer cannot open an HTTPS connection to `gateway_ip`
+
+**Resolution:** Check the address and port in `gateway_ip` (the default port is `4434`) and the firewalls between this machine and the appliance. Then run `--delete` and deploy again, or connect the appliance with the steps in `tokens/<gw_name>.txt`.
+
+</details>
+
+<details>
+<summary><code>failed: Threat Prevention policy installation (Access Control policy is installed)</code></summary>
+
+**Cause:** The gateway accepted the Access Control policy but not the Threat Prevention policy, after two attempts
+
+**Resolution:** Install the Threat Prevention policy on the gateway from SmartConsole and read the error it reports. Check that the policy package has a Threat Prevention policy and that the appliance is licensed for the enabled blades.
+
+</details>
+
+<details>
+<summary><code>--delete</code> fails with <code>Object ... could not be deleted because it is referenced by other objects</code></summary>
+
+**Cause:** The gateway is used in policy rules, for example as a source, a destination or an install-on target. The appliance is already reset to local management at this point.
+
+**Resolution:** Remove the gateway from those rules in SmartConsole (right-click the object and select **Where Used**), publish, and run `--delete` again.
+
+</details>
+
+<details>
+<summary>The gateway object has only the Firewall blade</summary>
+
+**Cause:** Blades are enabled only when their keys are set for the gateway
+
+**Resolution:** Set `vpn`, `ips`, `anti_bot`, `anti_virus`, `application_control` and `url_filtering` to `true` as needed in `config_data.json`. See [Configuration](#configconfig_datajson).
+
+</details>
+
+<details>
+<summary>A gateway without appliance credentials still waits for SIC</summary>
+
+**Cause:** An earlier version of the deployer is running, or another gateway in `config_data.json` still has appliance credentials
+
+**Resolution:** Check the first console line, `Smart-1 Cloud Spark Gateway Deployer version ...`. If it is missing, the copy is older than 17 November 2026: update it with `git pull` (see the upgrade note in [Configuration](#configuration) if `git pull` reports local changes). Then check the two lines that list the gateways with and without appliance credentials.
 
 </details>
 
@@ -669,6 +747,24 @@ The deployer and this README were checked against these documents:
 | **[R82.20 Release Notes](https://sc1.checkpoint.com/documents/R82.20/WebAdminGuides/EN/CP_R82.20_RN/CP_R82.20_ReleaseNotes.pdf)** | R82.20 | Supported Spark versions, Rugged 1200R |
 
 ## Changelog
+
+### November 2026: Blades, appliance failures and version line
+
+- New optional `vpn`, `ips`, `anti_bot` and `anti_virus` settings for each gateway, next to
+  `application_control` and `url_filtering`. The console lists the blades enabled on each gateway.
+- When phase 2 fails for a gateway, the deployer saves its cloud token and onboarding steps to
+  `tokens/<gw_name>.txt` and no longer waits for SIC with it.
+- A disabled or unreachable appliance REST API is reported by name, with the command that
+  enables it.
+- The Access Control policy is installed first and the Threat Prevention policy in a second
+  request, with one retry. Sent together, the Threat Prevention installation failed on a newly
+  connected gateway with IPS, Anti-Bot and Anti-Virus enabled.
+- `--delete` retries the appliance login for up to 2.5 minutes after `fw sic_reset`, instead of
+  once.
+- Tested end to end against Smart-1 Cloud R82.20 (Management API 2.2) and a Spark VNF appliance on
+  R81.10.17 with all six blades: automated deployment, manual onboarding and `--delete`.
+- Each run starts with the deployer version and the list of gateways with and without appliance
+  credentials. A gateway with only some of the three credential keys gets a warning.
 
 ### November 2026: net_type values by model
 

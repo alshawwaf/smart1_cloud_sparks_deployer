@@ -20,14 +20,41 @@ class GatewayConfig(BaseModel):
     gateway_ip: Optional[str] = None
     gateway_username: Optional[str] = None
     gateway_password: Optional[str] = None
-    # Optional blades, for example when Smart-1 Cloud adds the gateway to a group whose
-    # rules require them (such as Playblocks_Gateways)
+    # Optional blades. The Firewall blade is always enabled. All others are off unless set.
+    vpn: bool = False
+    ips: bool = False
+    anti_bot: bool = False
+    anti_virus: bool = False
     application_control: bool = False
     url_filtering: bool = False
     maas_token: Optional[str] = None
 
     # v2 configuration syntax
     model_config = ConfigDict(frozen=False)
+
+    def blades(self) -> Dict[str, bool]:
+        """Blade settings, keyed by their set-simple-gateway parameter names"""
+        return {
+            "vpn": self.vpn,
+            "ips": self.ips,
+            "anti-bot": self.anti_bot,
+            "anti-virus": self.anti_virus,
+            "application-control": self.application_control,
+            "url-filtering": self.url_filtering,
+        }
+
+    def has_threat_prevention(self) -> bool:
+        """True when a blade that needs the Threat Prevention policy is enabled"""
+        return any([self.ips, self.anti_bot, self.anti_virus])
+
+    def has_appliance_credentials(self) -> bool:
+        """True when the deployer can configure the appliance over its local REST API"""
+        return all([self.gateway_ip, self.gateway_username, self.gateway_password])
+
+    def has_partial_appliance_credentials(self) -> bool:
+        """True when only some of gateway_ip, gateway_username and gateway_password are set"""
+        return (any([self.gateway_ip, self.gateway_username, self.gateway_password])
+                and not self.has_appliance_credentials())
 
 class PolicyPackage(BaseModel):
     """Policy package and SIC wait (policy_package_data.json)"""

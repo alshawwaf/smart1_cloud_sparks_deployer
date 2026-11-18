@@ -198,8 +198,13 @@ class ManagementAPI:
             self._logout()
 
     def configure_gateway(self, gw_name: str, sic_key: str,
-                          application_control: bool = False, url_filtering: bool = False) -> None:
-        """Set the SIC one-time password and blades, then publish"""
+                          blades: Optional[Dict[str, bool]] = None) -> None:
+        """
+        Set the SIC one-time password and blades, then publish.
+
+        blades maps set-simple-gateway blade parameters to their state, for example
+        {"vpn": True, "ips": True, "anti-bot": True}.
+        """
         try:
             self._login()
             # The appliance pulls its certificate ('fetch certificate'), so the management
@@ -210,8 +215,7 @@ class ManagementAPI:
                     "name": gw_name,
                     "one-time-password": sic_key,
                     "trust-settings": {"initiation-phase": "when_gateway_connects"},
-                    "application-control": application_control,
-                    "url-filtering": url_filtering
+                    **(blades or {})
                 }
             )
             self._publish()
@@ -280,18 +284,22 @@ class ManagementAPI:
             log.error(f"SIC not established with {gw_name} within {timeout}s, skipping policy installation")
         return communicating
 
-    def install_policy(self, policy_targets: List[str], policy_package: str) -> None:
-        """Install security policy on gateways"""
+    def install_policy(self, policy_targets: List[str], policy_package: str,
+                       access: bool = True, threat_prevention: bool = True) -> None:
+        """Install the Access Control and/or Threat Prevention policy on gateways"""
         try:
             # Each operation uses its own session
             self._login()
-            log.info(f"Installing {policy_package} on {len(policy_targets)} gateways")
+            parts = [name for name, selected in (("Access Control", access),
+                                                 ("Threat Prevention", threat_prevention)) if selected]
+            log.info(f"Installing {policy_package} ({' and '.join(parts)}) "
+                     f"on {len(policy_targets)} gateways")
             response = self._execute_api_call(
                 "install-policy",
                 {
                     "policy-package": policy_package,
-                    "access": True,
-                    "threat-prevention": True,
+                    "access": access,
+                    "threat-prevention": threat_prevention,
                     "targets": policy_targets
                 }
             )

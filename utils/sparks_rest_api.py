@@ -15,6 +15,8 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 DEFAULT_TIMEOUT = 60  # seconds for each HTTP request
 # Clish output that means the command failed, e.g. "Could not set security-management: ..."
 FAILURE_PATTERN = re.compile(r"\b(could not|failed|failure|error|invalid|rejected)\b", re.IGNORECASE)
+REST_API_OFF = ("The REST API on this appliance is off. Enable it in Gaia Clish on the appliance "
+                "with 'set rest-api mode true', then run the deployer again.")
 
 class SparksGatewayAPI:
     """Client for configuring sparks gateways via their local API"""
@@ -32,13 +34,29 @@ class SparksGatewayAPI:
     def login(self):
         """Authenticate with the sparks gateway"""
         try:
-            response = self.session.post(
-                f"{self.base_url}/login",
-                json={"user": self.username, "password": self.password},
-                timeout=self.timeout
-            )
-            response.raise_for_status()
-            self.sid = response.json()['sid']
+            try:
+                response = self.session.post(
+                    f"{self.base_url}/login",
+                    json={"user": self.username, "password": self.password},
+                    timeout=self.timeout
+                )
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+                raise RuntimeError(
+                    f"Cannot reach the appliance REST API at {self.base_url} from this machine. "
+                    "Check the address and port in gateway_ip (the default port is 4434), and "
+                    f"that the firewalls in between allow it. Details: {e}"
+                ) from e
+            # The appliance answers with "REST API on this appliance is off" until it is enabled
+            if re.search(r"rest api.*\boff\b", response.text, re.IGNORECASE):
+                raise RuntimeError(REST_API_OFF)
+            if not response.ok:
+                raise RuntimeError(f"Appliance login returned HTTP {response.status_code}: "
+                                   f"{response.text.strip()[:300]}")
+            try:
+                self.sid = response.json()['sid']
+            except (ValueError, KeyError) as e:
+                raise RuntimeError("Appliance login did not return a session: "
+                                   f"{response.text.strip()[:300]}") from e
             self.session.headers.update({'X-chkp-sid': self.sid})
             log.info("Sparks gateway login successful")
         except Exception as e:
